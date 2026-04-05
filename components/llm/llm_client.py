@@ -9,6 +9,7 @@ from components.constants import (
     CloseReason,
     MessagePriority,
     MessageType,
+    ModuleColors,
     close_reason_label,
 )
 from components.Incident.tracker import ActiveIncident
@@ -131,7 +132,7 @@ class LLMClient:
         try:
             response_json = json.loads(content)
         except json.JSONDecodeError:
-            logger.warning(f"LLMClient | {json_log_maker(content=content)} | Bad JSON")
+            logger.warning(f"{ModuleColors.LLM} | {json_log_maker(content=content)} | Bad JSON")
             return LLMResponse(
                 response_message=None, qualified=False, priority=MessagePriority.NONE
             )
@@ -156,7 +157,7 @@ class LLMClient:
                 user_content, system_prompt, MessageType.NEW_MESSAGE
             )
             logger.info(
-                f"LLM | {json_log_maker(message_type=message_type, qualified=response.qualified, priority=response.priority)} | New-incident prompt"
+                f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, qualified=response.qualified, priority=response.priority)} | New-incident prompt"
             )
             return response
 
@@ -169,7 +170,7 @@ class LLMClient:
         )
         response = await self._ask_llm(user_content, system_prompt, message_type)
         logger.info(
-            f"LLM | {json_log_maker(message_type=message_type, incident_id=incident.incident_id, related=response.related, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Merge prompt"
+            f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, incident_id=incident.incident_id, related=response.related, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Merge prompt"
         )
         return response
 
@@ -191,7 +192,7 @@ class LLMClient:
             user_content, system_prompt, MessageType.DELETED_MESSAGE
         )
         logger.info(
-            f"LLM | {json_log_maker(incident_id=incident.incident_id, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Reprocess-after-deletion prompt"
+            f"{ModuleColors.LLM} | {json_log_maker(incident_id=incident.incident_id, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Reprocess-after-deletion prompt"
         )
         return response
 
@@ -224,7 +225,7 @@ class LLMClient:
             response_json = json.loads(content)
         except json.JSONDecodeError:
             logger.warning(
-                f"LLMClient | {json_log_maker(content=content)} | Closed-subject Bad JSON"
+                f"{ModuleColors.LLM} | {json_log_maker(content=content)} | Closed-subject Bad JSON"
             )
             return None
         subj_raw = response_json.get("subject")

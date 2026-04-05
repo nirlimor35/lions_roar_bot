@@ -20,6 +20,7 @@ from components.constants import (
     IncidentHandlerLog,
     MessagePriority,
     MessageType,
+    ModuleColors,
 )
 from components.handle_wm import ChannelWatermarks, EditTextCache
 from components.Incident.handler import (
@@ -119,7 +120,7 @@ class LionsRoar:
         )
         self._deferred_close_config = self._load_deferred_close_config(cfg)
         logger.info(
-            f"Main | {json_log_maker(deferred_close=self._deferred_close_config)} | Deferred-close config loaded"
+            f"{ModuleColors.MAIN} | {json_log_maker(deferred_close=self._deferred_close_config)} | Deferred-close config loaded"
         )
 
     def _resolve_model_for_current_israel_time(self) -> str:
@@ -208,7 +209,7 @@ class LionsRoar:
         if incident_id is not None and self._deferred_close_incident_id != incident_id:
             return False
         logger.info(
-            f"Main | {json_log_maker(incident_id=self._deferred_close_incident_id)} | Cancelling deferred-close task"
+            f"{ModuleColors.MAIN} | {json_log_maker(incident_id=self._deferred_close_incident_id)} | Cancelling deferred-close task"
         )
         task.cancel()
         self._deferred_close_task = None
@@ -248,7 +249,7 @@ class LionsRoar:
     ) -> None:
         self._cancel_deferred_close()
         logger.info(
-            f"Main | {json_log_maker(incident_id=incident_id, close_reason=close_reason, delay_s=delay_seconds)} | Scheduling deferred-close task"
+            f"{ModuleColors.MAIN} | {json_log_maker(incident_id=incident_id, close_reason=close_reason, delay_s=delay_seconds)} | Scheduling deferred-close task"
         )
         self._deferred_close_incident_id = incident_id
         self._deferred_close_reason = close_reason
@@ -271,7 +272,7 @@ class LionsRoar:
                 opened = self._tracker.get_open_incident()
                 if opened is None or opened.incident_id != incident_id:
                     logger.info(
-                        f"Main | {json_log_maker(incident_id=incident_id, close_reason=close_reason)} | Deferred-close fired | skip (incident not open/mismatched)"
+                        f"{ModuleColors.MAIN} | {json_log_maker(incident_id=incident_id, close_reason=close_reason)} | Deferred-close fired | skip (incident not open/mismatched)"
                     )
                     return
                 snapshot = self._tracker.end_incident(utc_now())
@@ -309,13 +310,13 @@ class LionsRoar:
                         subject=closed_subject,
                     )
                 except Exception:
-                    logger.exception("Failed to edit alert after deferred close")
+                    logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after deferred close")
                 else:
                     logger.info(
-                        f"Main | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id, close_reason=close_reason)} | Deferred-close destination alert edited"
+                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id, close_reason=close_reason)} | Deferred-close destination alert edited"
                     )
             logger.info(
-                f"Main | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=snapshot.incident_id, close_reason=close_reason)} | Incident closed after deferred close"
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=snapshot.incident_id, close_reason=close_reason)} | Incident closed after deferred close"
             )
         except asyncio.CancelledError:
             raise
@@ -347,7 +348,7 @@ class LionsRoar:
         task = self._merge_deadline_task
         if task is not None and not task.done():
             logger.info(
-                "Cancelling merge-deadline task (incident ended or rescheduled)"
+                f"{ModuleColors.INCIDENT_HANDLER} | Cancelling merge-deadline task (incident ended or rescheduled)"
             )
             task.cancel()
         self._merge_deadline_task = None
@@ -356,7 +357,7 @@ class LionsRoar:
         task = self._informational_grace_task
         if task is not None and not task.done():
             logger.info(
-                "Cancelling informational-grace task (incident ended or priority changed)"
+                f"{ModuleColors.INCIDENT_HANDLER} | Cancelling informational-grace task (incident ended or priority changed)"
             )
             task.cancel()
         self._informational_grace_task = None
@@ -370,7 +371,7 @@ class LionsRoar:
         if prev is not None and not prev.done():
             prev.cancel()
         logger.info(
-            f"Main | {json_log_maker(incident_id=incident_id, delay_s=INFORMATIONAL_GRACE_PERIOD.total_seconds())} | Scheduling informational-grace close",
+            f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=incident_id, delay_s=INFORMATIONAL_GRACE_PERIOD.total_seconds())} | Scheduling informational-grace close",
         )
         self._informational_grace_task = asyncio.create_task(
             self._fire_informational_grace(incident_id)
@@ -381,7 +382,7 @@ class LionsRoar:
         self._cancel_merge_deadline_task()
         expires = ensure_utc(expires_at)
         logger.info(
-            f"Main | {json_log_maker(expires_at=expires.isoformat())} | Scheduling merge-deadline task",
+            f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(expires_at=expires.isoformat())} | Scheduling merge-deadline task",
         )
         task = asyncio.create_task(self._fire_merge_deadline(expires))
         self._merge_deadline_task = task
@@ -392,7 +393,7 @@ class LionsRoar:
             # Wait until merge window end, then clear the slot if still open (TTL eviction).
             delay = (ensure_utc(expires_at) - utc_now()).total_seconds()
             logger.info(
-                f"Main | {json_log_maker(sleep_s=max(0.0, delay), expires_at=ensure_utc(expires_at).isoformat())} | Merge-deadline waiter started",
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(sleep_s=max(0.0, delay), expires_at=ensure_utc(expires_at).isoformat())} | Merge-deadline waiter started",
             )
             if delay > 0:
                 await asyncio.sleep(delay)
@@ -400,7 +401,7 @@ class LionsRoar:
                 ended = self._tracker.evict_if_ttl_expired()
             if ended is None:
                 logger.info(
-                    "Merge-deadline fired | no TTL eviction (slot empty or already closed)"
+                    f"{ModuleColors.INCIDENT_HANDLER} | Merge-deadline fired, no TTL eviction (slot empty or already closed)"
                 )
             if ended is not None:
                 self._cancel_deferred_close(ended.incident_id)
@@ -438,13 +439,13 @@ class LionsRoar:
                             subject=closed_subject,
                         )
                     except Exception:
-                        logger.exception("Failed to edit alert after TTL expiry")
+                        logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after TTL expiry")
                     else:
                         logger.info(
-                            f"Main | {json_log_maker(incident_id=ended.incident_id, message_id=ended.incident_message_id)} | TTL destination alert edited",
+                            f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=ended.incident_id, message_id=ended.incident_message_id)} | TTL destination alert edited",
                         )
                 logger.info(
-                    f"Main | {json_log_maker(incident_id=ended.incident_id, unified_text_len=len(ended.unified_text))} | Incident TTL finalized",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=ended.incident_id, unified_text_len=len(ended.unified_text))} | Incident TTL finalized",
                 )
         except asyncio.CancelledError:
             raise
@@ -458,7 +459,7 @@ class LionsRoar:
         try:
             delay = max(0.0, INFORMATIONAL_GRACE_PERIOD.total_seconds())
             logger.info(
-                f"Main | {json_log_maker(sleep_s=delay, incident_id=incident_id)} | Informational-grace waiter started",
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(sleep_s=delay, incident_id=incident_id)} | Informational-grace waiter started",
             )
             if delay > 0:
                 await asyncio.sleep(delay)
@@ -470,7 +471,7 @@ class LionsRoar:
                     or opened.alert_priority != MessagePriority.INFORMATIONAL
                 ):
                     logger.info(
-                        f"Main | {json_log_maker(incident_id=incident_id)} | Informational-grace fired | skip (no matching open informational incident)",
+                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=incident_id)} | Informational-grace fired | skip (no matching open informational incident)",
                     )
                     return
                 should_defer, defer_seconds = self._deferred_close_rule(
@@ -487,7 +488,7 @@ class LionsRoar:
                         incident_id, CloseReason.INFORMATIONAL_GRACE, defer_seconds
                     )
                     logger.info(
-                        f"Main | {json_log_maker(incident_id=incident_id, close_reason=CloseReason.INFORMATIONAL_GRACE, deferred_seconds=defer_seconds)} | Informational-grace converted to deferred close",
+                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=incident_id, close_reason=CloseReason.INFORMATIONAL_GRACE, deferred_seconds=defer_seconds)} | Informational-grace converted to deferred close",
                     )
                     if pending_message_id:
                         await self._telegram_sender.edit_alert(
@@ -539,14 +540,14 @@ class LionsRoar:
                     )
                 except Exception:
                     logger.exception(
-                        "Failed to edit alert after informational-grace close"
+                        f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after informational-grace close"
                     )
                 else:
                     logger.info(
-                        f"Main | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | Informational-grace destination alert edited",
+                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | Informational-grace destination alert edited",
                     )
             logger.info(
-                f"Main | {json_log_maker(incident_id=snapshot.incident_id)} | Incident closed after informational grace",
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=snapshot.incident_id)} | Incident closed after informational grace",
             )
         except asyncio.CancelledError:
             raise
@@ -556,7 +557,7 @@ class LionsRoar:
 
     async def _resolve_monitored_chats(self) -> None:
         # Populate frozenset used by _is_monitored_chat; no-op when monitored_chats is empty.
-        logger.info("Resolving monitored chat peers from config")
+        logger.info(f"{ModuleColors.MAIN} | Resolving monitored chat peers from config")
         self._monitored_peer_ids = await resolve_monitored_peer_ids(
             self._client, self.monitored_chats
         )
@@ -591,7 +592,7 @@ class LionsRoar:
             if not skip_new_message_watermark_check and self._watermarks.is_old(
                 channel_id, message_id
             ):
-                logger.debug("Duplicate new_message skipped")
+                logger.debug(f"{ModuleColors.MESSAGE_PROCESSING} | Duplicate new_message skipped")
                 return
             self._edit_text_cache.record(channel_id, message_id, message.text or "")
 
@@ -602,7 +603,7 @@ class LionsRoar:
                     channel_id, message_id, edit_text
                 ):
                     logger.debug(
-                        f"Edit deduped (unchanged text) | channel_id={channel_id} | message_id={message_id}"
+                        f"{ModuleColors.MESSAGE_PROCESSING} | Edit deduped (unchanged text) | channel_id={channel_id} | message_id={message_id}"
                     )
                     return
                 self._edit_text_cache.record(channel_id, message_id, edit_text)
@@ -633,14 +634,14 @@ class LionsRoar:
                         latest_seen = self._watermarks.latest(channel_id)
                         if message_id < latest_seen:
                             logger.debug(
-                                "Ignoring edited_message opener candidate as old"
+                                f"{ModuleColors.MESSAGE_PROCESSING} | Ignoring edited_message opener candidate as old"
                             )
                             return
                 opened_incident: ActiveIncident | None = (
                     self._tracker.get_open_incident()
                 )
                 logger.info(
-                    f"Main | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
                 )
                 if opened_incident is not None:
                     prep = self._incident_handler.build_existing_incident_prep(
@@ -710,11 +711,11 @@ class LionsRoar:
                 )
             except Exception:
                 logger.exception(
-                    "Failed to edit alert after LLM-close (outside tracker lock)"
+                    f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after LLM-close (outside tracker lock)"
                 )
             else:
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed)",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed)",
                 )
 
     async def _run_new_incident_pipeline(
@@ -766,7 +767,7 @@ class LionsRoar:
             async with self._open_incident_lock:
                 if self._tracker.get_open_incident() is not None:
                     logger.info(
-                        f"{IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | Slot filled during qualification; converting to merge",
+                        f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | Slot filled during qualification; converting to merge",
                     )
                     prep = self._incident_handler.build_existing_incident_prep(
                         opened_incident=self._tracker.get_open_incident(),
@@ -822,12 +823,12 @@ class LionsRoar:
                 # Last attempt: log full traceback; earlier attempts: warn and backoff (watermark not advanced on exception).
                 if attempt >= max_a:
                     logger.exception(
-                        f"Main | {json_log_maker(type=event_type, max_attempts=max_a)} | Error handling after {max_a} attempts"
+                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(type=event_type, max_attempts=max_a)} | Error handling after {max_a} attempts"
                     )
                     return
                 delay = base * (2 ** (attempt - 1))
                 logger.warning(
-                    f"Main | {json_log_maker(type=event_type, attempt=attempt, max_attempts=max_a, delay=delay)} | Error handling; retrying in {delay:.1f}s: {exc}"
+                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(type=event_type, attempt=attempt, max_attempts=max_a, delay=delay)} | Error handling; retrying in {delay:.1f}s: {exc}"
                 )
                 await asyncio.sleep(delay)
 
@@ -842,7 +843,7 @@ class LionsRoar:
                 open_i = self._tracker.get_open_incident()
             if open_i is None or open_i.incident_id != incident_id:
                 logger.warning(
-                    f"Main | {json_log_maker(incident_id=incident_id)} | Source-deleted grace skip (incident not open)",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=incident_id)} | Source-deleted grace skip (incident not open)",
                 )
                 return
             if open_i.incident_message_id:
@@ -863,14 +864,14 @@ class LionsRoar:
                     )
                 except Exception:
                     logger.exception(
-                        "Failed to edit alert after source-deleted grace schedule"
+                        f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after source-deleted grace schedule"
                     )
                 else:
                     logger.info(
-                        f"Main | {json_log_maker(incident_id=incident_id, message_id=open_i.incident_message_id)} | Source-deleted pending close banner set",
+                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=incident_id, message_id=open_i.incident_message_id)} | Source-deleted pending close banner set",
                     )
             logger.info(
-                f"Main | {json_log_maker(incident_id=incident_id, delay_s=seconds)} | Source-deleted grace close scheduled",
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=incident_id, delay_s=seconds)} | Source-deleted grace close scheduled",
             )
             return
 
@@ -916,11 +917,11 @@ class LionsRoar:
                 )
             except Exception:
                 logger.exception(
-                    "Failed to edit alert after immediate source-deleted close"
+                    f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after immediate source-deleted close"
                 )
             else:
                 logger.info(
-                    f"Main | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | Immediate source-deleted close — destination alert edited",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | Immediate source-deleted close — destination alert edited",
                 )
 
     async def _process_deletion(self, event) -> None:
@@ -945,7 +946,7 @@ class LionsRoar:
             if outcome is None:
                 return
             logger.info(
-                f"Main | {json_log_maker(chat_id=chat_id, deleted_ids=deleted_ids, incident_id=outcome.incident_id, grace=bool(outcome.grace_close), reprocess=outcome.reprocess)} | Source message deletion processed",
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(chat_id=chat_id, deleted_ids=deleted_ids, incident_id=outcome.incident_id, grace=bool(outcome.grace_close), reprocess=outcome.reprocess)} | Source message deletion processed",
             )
             if outcome.grace_close is not None:
                 grace_incident_id = outcome.grace_close.incident_id
@@ -998,22 +999,22 @@ class LionsRoar:
                 )
             except Exception:
                 logger.exception(
-                    "Failed to edit alert after reprocess close (deletion pipeline)"
+                    f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after reprocess close (deletion pipeline)"
                 )
             else:
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed after reprocess)",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed after reprocess)",
                 )
 
     async def init_watermarks(self) -> None:
         # With no allowlist, startup scan is skipped; first live message sets position.
         if not self.monitored_chats:
-            logger.info("Watermarks | skip init (no monitored_chats allowlist)")
+            logger.info(f"{ModuleColors.MAIN} | Watermarks | skip init (no monitored_chats allowlist)")
             return
 
         chats = monitored_chats_list(self.monitored_chats)
         logger.info(
-            f"Main | {json_log_maker(monitored_chat_count=len(chats))} | Watermarks init start"
+            f"{ModuleColors.MAIN} | {json_log_maker(monitored_chat_count=len(chats))} | Watermarks init start"
         )
         for chat in chats:
             try:
@@ -1027,17 +1028,17 @@ class LionsRoar:
                 if messages:
                     self._watermarks.update(channel_id, messages[0].id)
                     logger.info(
-                        f"Main | {json_log_maker(chat=chat, channel_id=channel_id, message_id=messages[0].id)} | Watermarks seeded from latest message",
+                        f"{ModuleColors.MAIN} | {json_log_maker(chat=chat, channel_id=channel_id, message_id=messages[0].id)} | Watermarks seeded from latest message",
                     )
                 else:
                     self._watermarks.update(channel_id, 0)
                     logger.info(
-                        f"Main | {json_log_maker(chat=chat, channel_id=channel_id)} | Watermarks empty history",
+                        f"{ModuleColors.MAIN} | {json_log_maker(chat=chat, channel_id=channel_id)} | Watermarks empty history",
                     )
 
             except Exception as e:
                 logger.warning(
-                    f"Main | {json_log_maker(chat=chat)} | Could not init watermark: {e}"
+                    f"{ModuleColors.MAIN} | {json_log_maker(chat=chat)} | Could not init watermark: {e}"
                 )
 
     async def _manual_close_incident(
@@ -1048,10 +1049,10 @@ class LionsRoar:
         async with self._open_incident_lock:
             opened = self._tracker.get_open_incident()
             if opened is None:
-                logger.info("Manual close | no open incident")
+                logger.info(f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | no open incident")
                 return "אין אירוע פתוח כרגע."
             logger.info(
-                f"Main | {IncidentHandlerLog.MANUAL} | {json_log_maker(incident_id=opened.incident_id)} | Manual close - ending incident",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | {json_log_maker(incident_id=opened.incident_id)} | Manual close - ending incident",
             )
             self._cancel_deferred_close(opened.incident_id)
 
@@ -1090,14 +1091,14 @@ class LionsRoar:
                     custom_close_reason=custom_close_reason,
                 )
             except Exception:
-                logger.exception("Failed to edit alert after manual close")
+                logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | Failed to edit alert after manual close")
             else:
                 logger.info(
-                    f"Main | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | Manual close - destination alert edited",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | destination alert edited",
                 )
         elif snapshot:
             logger.info(
-                f"Main | {json_log_maker(incident_id=snapshot.incident_id)} | Manual close - snapshot without destination message_id",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | {json_log_maker(incident_id=snapshot.incident_id)} | Snapshot without destination message_id",
             )
         return "האירוע נסגר ידנית."
 
@@ -1115,7 +1116,7 @@ class LionsRoar:
                 ):
                     return
                 logger.info(
-                    f"Admin Telethon | {json_log_maker(user_id=event.sender_id, chat_id=event.chat_id)} | /close from user_id={event.sender_id} chat_id={event.chat_id}"
+                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(user_id=event.sender_id, chat_id=event.chat_id)} | Close command received"
                 )
                 _, reason_text = parse_manual_close_command(event.message.text)
                 reply = await self._manual_close_incident(reason_text)
@@ -1125,12 +1126,12 @@ class LionsRoar:
                         await event.delete()
                     except Exception:
                         logger.debug(
-                            f"Main | {json_log_maker(user_id=event.sender_id, chat_id=event.chat_id)} | Could not delete admin command message",
+                            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(user_id=event.sender_id, chat_id=event.chat_id)} | Could not delete admin command message",
                             exc_info=True,
                         )
             except Exception:
                 logger.exception(
-                    f"Main | {json_log_maker(user_id=event.sender_id, chat_id=event.chat_id)} | Error handling admin close command"
+                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(user_id=event.sender_id, chat_id=event.chat_id)} | Error handling admin close command"
                 )
 
         @self._client.on(events.NewMessage)
@@ -1149,7 +1150,7 @@ class LionsRoar:
                 await self._process_deletion(event)
             except Exception:
                 logger.exception(
-                    "Main | Error handling MessageDeleted",
+                    f"{ModuleColors.MESSAGE_PROCESSING} | Error handling MessageDeleted",
                 )
 
     async def main(self):
@@ -1158,8 +1159,8 @@ class LionsRoar:
         me = await self._client.get_me()
         username = getattr(me, "username", None)
 
-        logger.info(f"Connected as {username or me.id}")
-        logger.info(f"Monitoring chats={self.monitored_chats or 'all'}")
+        logger.info(f"{ModuleColors.MAIN} | Connected as {username or me.id}")
+        logger.info(f"{ModuleColors.MAIN} | Monitoring chats={self.monitored_chats or 'all'}")
 
         cfg = type(self).config
         ac = cfg.get("admin_command_chat_id")
@@ -1170,12 +1171,12 @@ class LionsRoar:
             frozenset(int(x) for x in au) if au else frozenset({me.id})
         )
         logger.info(
-            f"Manual close | {json_log_maker(chat_id=self._admin_command_chat_id, allowed_user_ids=sorted(self._admin_user_ids), enable_bot_dm_commands=cfg.get('enable_bot_dm_commands', True))}"
+            f"{IncidentHandlerLog.MANUAL} | {json_log_maker(chat_id=self._admin_command_chat_id, allowed_user_ids=sorted(self._admin_user_ids), enable_bot_dm_commands=cfg.get('enable_bot_dm_commands', True))}"
         )
         await self._resolve_monitored_chats()
         await self.init_watermarks()
         self._register_handlers()
-        logger.info("Telethon event handlers registered")
+        logger.info(f"{ModuleColors.MAIN} | Telethon event handlers registered")
 
         # Bot API long poll in parallel — does not block Telethon; uses same manual_close + send_plain_text.
         asyncio.create_task(

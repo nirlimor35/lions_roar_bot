@@ -11,6 +11,7 @@ from components.constants import (
     IncidentHandlerLog,
     MessagePriority,
     MessageType,
+    ModuleColors,
 )
 from components.Incident.log import (
     append_incident_closure,
@@ -191,7 +192,7 @@ class IncidentHandler:
             self._client, prep.channel_id, prep.message
         )
         logger.info(
-            f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, channel=prep.channel_name, has_reply_parent=reply_parent_text is not None)} | LLM merge request",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, channel=prep.channel_name, has_reply_parent=reply_parent_text is not None)} | LLM merge request",
         )
         return await self._llm.run_llm(
             event_message=prep.text,
@@ -211,7 +212,7 @@ class IncidentHandler:
         opened_incident = self._tracker.get_open_incident()
         if opened_incident is None or opened_incident.incident_id != prep.incident_id:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id)} | Merge discarded (incident closed or replaced)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id)} | Merge discarded (incident closed or replaced)",
             )
             return None
 
@@ -234,7 +235,7 @@ class IncidentHandler:
             and llm_response.related is False
         ):
             logger.warning(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, message_id=message_id)} | Source-edit returned related=False; coercing to related=True",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, message_id=message_id)} | Source-edit returned related=False; coercing to related=True",
             )
             llm_response.related = True
 
@@ -264,7 +265,7 @@ class IncidentHandler:
             )
         ):
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, related=getattr(llm_response, 'related', None), qualified=getattr(llm_response, 'qualified', None), ended=getattr(llm_response, 'ended', None), reasoning=getattr(llm_response, 'reasoning', None))} | LLM result ignored",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, related=getattr(llm_response, 'related', None), qualified=getattr(llm_response, 'qualified', None), ended=getattr(llm_response, 'ended', None), reasoning=getattr(llm_response, 'reasoning', None))} | LLM result ignored",
             )
             return None
 
@@ -298,7 +299,7 @@ class IncidentHandler:
         )
         if stripped:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Tracker merged text",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Tracker merged text",
             )
 
         canceled_deferred_close = False
@@ -326,11 +327,11 @@ class IncidentHandler:
                     else "source-deleted grace cancelled"
                 )
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, ended=llm_response.ended)} | Close timer overridden — {reason_log}",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, ended=llm_response.ended)} | Close timer overridden — {reason_log}",
                 )
             else:
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, ended=llm_response.ended)} | Close timer active — skipping timer logic",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, ended=llm_response.ended)} | Close timer active — skipping timer logic",
                 )
 
         if not llm_response.ended and not close_timer_locked:
@@ -375,11 +376,11 @@ class IncidentHandler:
                         pending_close_seconds=defer_seconds,
                     )
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled",
                 )
                 return None
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason)} | LLM ended incident",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason)} | LLM ended incident",
             )
             self._cancel_deferred_close(opened_incident.incident_id)
             snapshot = self._tracker.end_incident(message_ts)
@@ -416,12 +417,12 @@ class IncidentHandler:
         open_incident = self._tracker.get_open_incident()
         if open_incident is None:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id)} | No open slot after merge (already cleared)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id)} | No open slot after merge (already cleared)",
             )
             return None
         if not open_incident.incident_message_id:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | Recovery send (missing destination message_id)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | Recovery send (missing destination message_id)",
             )
             sent_message_id = await self._telegram_sender.send_alert(
                 channels=list(open_incident.channels),
@@ -432,7 +433,7 @@ class IncidentHandler:
             )
             self._tracker.set_incident_message_id(sent_message_id)
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, incident_message_id=sent_message_id)} | Recovery send stored",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, incident_message_id=sent_message_id)} | Recovery send stored",
             )
             return None
         if (
@@ -442,7 +443,7 @@ class IncidentHandler:
             and not canceled_deferred_close
         ):
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | No Telegram edit (unchanged after merge)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | No Telegram edit (unchanged after merge)",
             )
             return None
         pending_close = self._get_pending_close_info()
@@ -458,7 +459,7 @@ class IncidentHandler:
             pending_close_seconds=pending_close[1] if pending_close else None,
         )
         logger.info(
-            f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (merged)",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (merged)",
         )
         return None
 
@@ -518,7 +519,7 @@ class IncidentHandler:
         opened_incident = self._tracker.get_open_incident()
         if opened_incident is None or opened_incident.incident_id != incident_id:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=incident_id)} | Reprocess-after-deletion discarded (incident closed or replaced)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=incident_id)} | Reprocess-after-deletion discarded (incident closed or replaced)",
             )
             return None
 
@@ -528,7 +529,7 @@ class IncidentHandler:
 
         if llm_response is not None and llm_response.related is False:
             logger.warning(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess returned related=False; coercing to related=True",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess returned related=False; coercing to related=True",
             )
             llm_response.related = True
 
@@ -541,14 +542,14 @@ class IncidentHandler:
             fb = sanitize_alert_body_text(fb_raw) if fb_raw else ""
             if not fb:
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess ignored and no fallback text",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess ignored and no fallback text",
                 )
                 return None
             self._tracker.update_after_merge(
                 fb, None, alert_priority=pre_merge_priority
             )
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess fallback from remaining sources",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess fallback from remaining sources",
             )
         else:
             self._tracker.update_after_merge(
@@ -558,7 +559,7 @@ class IncidentHandler:
             )
             if stripped:
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Tracker reprocessed text",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Tracker reprocessed text",
                 )
 
         reprocess_ts = utc_now()
@@ -587,11 +588,11 @@ class IncidentHandler:
                     else "source-deleted grace cancelled"
                 )
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Close timer overridden — {reason_log}",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Close timer overridden — {reason_log}",
                 )
             else:
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Close timer active — skipping timer logic",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Close timer active — skipping timer logic",
                 )
 
         eff = llm_response if llm_response is not None else None
@@ -638,11 +639,11 @@ class IncidentHandler:
                         pending_close_seconds=defer_seconds,
                     )
                 logger.info(
-                    f"{IncidentHandlerLog.EXISTING} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled (reprocess)",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled (reprocess)",
                 )
                 return None
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason)} | LLM ended incident (reprocess)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason)} | LLM ended incident (reprocess)",
             )
             self._cancel_deferred_close(opened_incident.incident_id)
             snapshot = self._tracker.end_incident(reprocess_ts)
@@ -679,12 +680,12 @@ class IncidentHandler:
         open_incident = self._tracker.get_open_incident()
         if open_incident is None:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=incident_id)} | No open slot after reprocess (already cleared)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=incident_id)} | No open slot after reprocess (already cleared)",
             )
             return None
         if not open_incident.incident_message_id:
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | Recovery send (reprocess, missing destination message_id)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | Recovery send (reprocess, missing destination message_id)",
             )
             sent_message_id = await self._telegram_sender.send_alert(
                 channels=list(open_incident.channels),
@@ -695,7 +696,7 @@ class IncidentHandler:
             )
             self._tracker.set_incident_message_id(sent_message_id)
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, incident_message_id=sent_message_id)} | Recovery send stored (reprocess)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, incident_message_id=sent_message_id)} | Recovery send stored (reprocess)",
             )
             return None
         if (
@@ -705,7 +706,7 @@ class IncidentHandler:
             and not canceled_deferred_close
         ):
             logger.info(
-                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | No Telegram edit (unchanged after reprocess)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | No Telegram edit (unchanged after reprocess)",
             )
             return None
         pending_close = self._get_pending_close_info()
@@ -721,7 +722,7 @@ class IncidentHandler:
             pending_close_seconds=pending_close[1] if pending_close else None,
         )
         logger.info(
-            f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (reprocess)",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (reprocess)",
         )
         return None
 
@@ -736,7 +737,7 @@ class IncidentHandler:
         recent_closure_appendix: str | None,
     ) -> LLMClient.LLMResponse:
         logger.info(
-            f"{IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | LLM qualification request",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | LLM qualification request",
         )
         reply_parent_text = await fetch_replied_message_text(
             self._client, channel_id, message
@@ -764,7 +765,7 @@ class IncidentHandler:
     ) -> datetime | None:
         if self._tracker.get_open_incident() is not None:
             logger.warning(
-                f"{IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | Open slot already occupied; discarding new-incident LLM result",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | Open slot already occupied; discarding new-incident LLM result",
             )
             return None
         if (
@@ -773,7 +774,7 @@ class IncidentHandler:
             or response.priority == MessagePriority.NONE
         ):
             logger.info(
-                f"{IncidentHandlerLog.NEW} | {IncidentHandlerLog.NOT_OPENED} | {json_log_maker(channel=channel_name, qualified=getattr(response, 'qualified', None), priority=getattr(response, 'priority', None), reasoning=getattr(response, 'reasoning', None))}",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NOT_OPENED} | {json_log_maker(channel=channel_name, qualified=getattr(response, 'qualified', None), priority=getattr(response, 'priority', None), reasoning=getattr(response, 'reasoning', None))}",
             )
             return None
 
@@ -799,7 +800,7 @@ class IncidentHandler:
 
         if not initial_text:
             logger.info(
-                f"{IncidentHandlerLog.NEW} | {IncidentHandlerLog.NOT_OPENED} | {json_log_maker(channel=channel_name)} | Empty body after sanitize",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NOT_OPENED} | {json_log_maker(channel=channel_name)} | Empty body after sanitize",
             )
             return None
 
@@ -811,7 +812,7 @@ class IncidentHandler:
             subject=None,
         )
         logger.info(
-            f"{IncidentHandlerLog.NEW} | {IncidentHandlerLog.OPENED} | {json_log_maker(channel=channel_name, destination_message_id=incident_message_id, priority=response.priority)} | Alert sent to destination",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.OPENED} | {json_log_maker(channel=channel_name, destination_message_id=incident_message_id, priority=response.priority)} | Alert sent to destination",
         )
         created = self._tracker.create_incident(
             incident_message_id=incident_message_id,
@@ -828,7 +829,7 @@ class IncidentHandler:
         )
         self._tracker.clear_recent_incident_closure()
         logger.info(
-            f"{IncidentHandlerLog.NEW} | {IncidentHandlerLog.OPENED} | {json_log_maker(incident_id=created.incident_id, incident_message_id=incident_message_id, priority=response.priority, merge_expires_at=ensure_utc(created.expires_at).isoformat())} | Tracker slot created",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.OPENED} | {json_log_maker(incident_id=created.incident_id, incident_message_id=incident_message_id, priority=response.priority, merge_expires_at=ensure_utc(created.expires_at).isoformat())} | Tracker slot created",
         )
         if created.alert_priority in (
             MessagePriority.INFORMATIONAL,

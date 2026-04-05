@@ -58,6 +58,11 @@ class AlertTitles:
     # Treat NONE like informational for display when an incident was opened.
     DEFAULT = INFORMATIONAL
 
+class ModuleColors:
+    INCIDENT_HANDLER = "\033[94mIncident Handler\033[0m"
+    MESSAGE_PROCESSING = "\033[95mMessage Processing\033[0m"
+    MAIN = "\033[96mMain\033[0m"
+    LLM = "\033[92mLLM\033[0m"
 
 class IncidentHandlerLog:
     NEW = "\033[93mNew Incident\033[0m"

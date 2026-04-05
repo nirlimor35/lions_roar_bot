@@ -11,6 +11,7 @@ from components.constants import (
     AlertTitles,
     CloseReason,
     MessagePriority,
+    ModuleColors,
     alert_title_for_priority,
     close_reason_label,
 )
@@ -181,7 +182,7 @@ class TelegramMessageSender:
                         except ValueError:
                             pass
                     logger.warning(
-                        f"Telegram | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Rate limited (429)"
+                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Rate limited (429)"
                     )
                     if attempt < max_attempts:
                         await asyncio.sleep(wait_s)
@@ -190,7 +191,7 @@ class TelegramMessageSender:
                 if 400 <= resp.status_code < 500:
                     return resp
                 logger.warning(
-                    f"Telegram | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Failed: {resp.status_code} {resp.text[:300]}"
+                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Failed: {resp.status_code} {resp.text[:300]}"
                 )
                 if attempt < max_attempts:
                     await asyncio.sleep(float(attempt))
@@ -198,7 +199,7 @@ class TelegramMessageSender:
                 return resp
             except httpx.HTTPError as exc:
                 logger.warning(
-                    f"Telegram | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Network error: {exc}"
+                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Network error: {exc}"
                 )
                 if attempt < max_attempts:
                     await asyncio.sleep(float(attempt))
@@ -217,7 +218,7 @@ class TelegramMessageSender:
         )
         if not resp.is_success:
             logger.warning(
-                f"Telegram | {json_log_maker(endpoint='pinChatMessage', status_code=resp.status_code, text=resp.text)} | Pin chat message failed (bot may lack pin admin or chat type unsupported)"
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='pinChatMessage', status_code=resp.status_code, text=resp.text)} | Pin chat message failed (bot may lack pin admin or chat type unsupported)"
             )
 
     async def _bump_edit_notification(self, reply_to_message_id: int) -> None:
@@ -237,7 +238,7 @@ class TelegramMessageSender:
         )
         if not resp.is_success:
             logger.warning(
-                f"Telegram | {json_log_maker(endpoint='sendMessage', status_code=resp.status_code, text=resp.text)} | Edit bump sendMessage failed"
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='sendMessage', status_code=resp.status_code, text=resp.text)} | Edit bump sendMessage failed"
             )
             return
         bump_id = int(resp.json()["result"]["message_id"])
@@ -252,7 +253,7 @@ class TelegramMessageSender:
         )
         if not del_resp.is_success:
             logger.warning(
-                f"Telegram | {json_log_maker(endpoint='deleteMessage', status_code=del_resp.status_code, text=del_resp.text)} | Delete message (bump) failed"
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='deleteMessage', status_code=del_resp.status_code, text=del_resp.text)} | Delete message (bump) failed"
             )
 
     async def send_alert(
@@ -292,12 +293,12 @@ class TelegramMessageSender:
         )
         if not resp.is_success:
             logger.error(
-                f"Telegram | {json_log_maker(endpoint='sendMessage', status_code=resp.status_code, text=resp.text)} | API error"
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='sendMessage', status_code=resp.status_code, text=resp.text)} | API error"
             )
         resp.raise_for_status()
         new_id = int(resp.json()["result"]["message_id"])
         logger.info(
-            f"Telegram | {json_log_maker(destination_chat_id=self._chat_id, message_id=new_id)} | SendMessage (alert) ok"
+            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(destination_chat_id=self._chat_id, message_id=new_id)} | SendMessage (alert) ok"
         )
         return new_id
 
@@ -313,11 +314,11 @@ class TelegramMessageSender:
         )
         if not resp.is_success:
             logger.warning(
-                f"Telegram | {json_log_maker(endpoint='sendMessage', status_code=resp.status_code, text=resp.text)} | SendMessage (plain) failed"
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='sendMessage', status_code=resp.status_code, text=resp.text)} | SendMessage (plain) failed"
             )
             return
         logger.info(
-            f"Telegram | {json_log_maker(chat_id=chat_id, text_len=len(text))} | SendMessage (plain) ok"
+            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(chat_id=chat_id, text_len=len(text))} | SendMessage (plain) ok"
         )
 
     async def edit_alert(
@@ -360,16 +361,16 @@ class TelegramMessageSender:
         if not resp.is_success:
             if self._is_not_modified_error(resp):
                 logger.info(
-                    f"Telegram | {json_log_maker(message_id=message_id)} | EditMessageText no-op (message not modified)",
+                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(message_id=message_id)} | EditMessageText no-op (message not modified)",
                 )
                 return False
             logger.error(
-                f"Telegram | {json_log_maker(endpoint='editMessageText', status_code=resp.status_code, text=resp.text)} | EditMessageText error"
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='editMessageText', status_code=resp.status_code, text=resp.text)} | EditMessageText error"
             )
         resp.raise_for_status()
 
         logger.info(
-            f"Telegram | {json_log_maker(destination_chat_id=self._chat_id, message_id=message_id)} | EditMessageText (alert) ok"
+            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(destination_chat_id=self._chat_id, message_id=message_id)} | EditMessageText (alert) ok"
         )
         if self._pin_on_edit:
             await self._pin_chat_message(message_id)

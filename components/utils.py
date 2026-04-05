@@ -6,6 +6,8 @@ from loguru import logger
 from telethon import utils as tg_utils
 from telethon.tl import types
 
+from components.constants import ModuleColors
+
 _IL_TZ = ZoneInfo("Asia/Jerusalem")
 
 
@@ -83,7 +85,7 @@ async def resolve_monitored_peer_ids(
     """
     raw = monitored_chats_list(monitored_chats_config)
     if not raw:
-        logger.info(f"Monitored peers | no allowlist (all chats)")
+        logger.info(f"{ModuleColors.MAIN} | Monitored peers allowlist empty, using all chats")
         return None
     result: set[int] = set()
     for chat in raw:
@@ -106,13 +108,13 @@ async def resolve_monitored_peer_ids(
                 result.add(tg_utils.get_peer_id(ent))
                 continue
             logger.warning(
-                f"Main | {json_log_maker(type=type(chat), chat=chat)} | Unsupported monitored_chats entry type"
+                f"{ModuleColors.MAIN} | {json_log_maker(type=type(chat), chat=chat)} | Unsupported monitored_chats entry type"
             )
         except Exception as e:
-            logger.warning(f"Could not resolve monitored chat {chat!r}: {e}")
+            logger.warning(f"{ModuleColors.MAIN} | Could not resolve monitored chat {chat!r}: {e}")
     peer_ids = frozenset(result)
     logger.info(
-        f"Main | {json_log_maker(count=len(peer_ids), peer_ids=sorted(peer_ids))} | Monitored peers resolved"
+        f"{ModuleColors.MAIN} | {json_log_maker(count=len(peer_ids), peer_ids=sorted(peer_ids))} | Monitored peers resolved"
     )
     return peer_ids
 
@@ -207,7 +209,7 @@ async def fetch_replied_message_text(
             entity_for_parent_fetch = await client.get_input_entity(reply_to_peer_id)
         except Exception:
             logger.warning(
-                f"Could not resolve reply_to_peer_id; using synthetic parent | parent_message_id={parent_message_id}",
+                f"{ModuleColors.MESSAGE_PROCESSING} | Could not resolve reply_to_peer_id; using synthetic parent | parent_message_id={parent_message_id}",
                 exc_info=True,
             )
             return _synthetic_reply_parent(
@@ -220,7 +222,7 @@ async def fetch_replied_message_text(
         )
     except Exception:
         logger.warning(
-            f"get_messages failed for reply parent | parent_message_id={parent_message_id}",
+            f"{ModuleColors.MESSAGE_PROCESSING} | get_messages failed for reply parent | parent_message_id={parent_message_id}",
             exc_info=True,
         )
         return _synthetic_reply_parent(
