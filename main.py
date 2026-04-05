@@ -22,6 +22,7 @@ from components.constants import (
 )
 from components.handle_wm import ChannelWatermarks, EditTextCache
 from components.Incident.handler import (
+    ExistingIncidentPrep,
     IncidentHandler,
     IncidentHandlerLog,
     PendingClosedAlertEdit,
@@ -61,10 +62,9 @@ class LionsRoar:
     used_llm = (config.get("used_llm") or "openai").strip().lower()
     _llm_models = config.get("LLM_models")
     _llm_models = _llm_models if isinstance(_llm_models, dict) else {}
-    day_model = _llm_models.get("day") or config.get("model") or "gpt-5.4-mini"
-    night_model = _llm_models.get("night") or day_model
+    day_model = _llm_models.get("day") or "gpt-5.4-mini"
+    night_model = _llm_models.get("night") or "gpt-5.4"
     openai_api_key = config.get("openai_api_key")
-    anthropic_api_key = config.get("antropic_api_key")
 
     # Bot credentials
     bot_token = config.get("bot_token")
@@ -621,113 +621,185 @@ class LionsRoar:
             if text and is_manual_close_command(text):
                 return
 
-            merge_deadline_at: datetime | None = None
+            prep: ExistingIncidentPrep | None = None
+            recent_appendix: str | None = None
+            message_ts = message_timestamp(message)
 
-            async with self._incident_pipeline_sem:
+            async with self._open_incident_lock:
                 if event_type == MessageType.EDITED_MESSAGE:
-                    async with self._open_incident_lock:
-                        if self._tracker.get_open_incident() is None:
-                            latest_seen = self._watermarks.latest(channel_id)
-                            if message_id < latest_seen:
-                                logger.debug(
-                                    "Ignoring edited_message opener candidate as old"
-                                )
-                                return
-                recent_appendix: str | None = None
-                async with self._open_incident_lock:
-                    message_ts = message_timestamp(message)
-                    opened_incident: ActiveIncident | None = (
-                        self._tracker.get_open_incident()
-                    )
-                    logger.info(
-                        f"Main | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
-                    )
-                    if opened_incident is not None:
-                        prep = self._incident_handler.build_existing_incident_prep(
-                            opened_incident=opened_incident,
-                            channel_id=channel_id,
-                            channel_name=channel_name,
-                            raw_text=raw_text,
-                            text=text,
-                            event_type=event_type,
-                            message_ts=message_ts,
-                            message_id=message_id,
-                            parent_message_id=parent_message_id,
-                            message=message,
-                        )
-                    else:
-                        prep = None
-                        recent_appendix = self._tracker.recent_closure_prompt_appendix(
-                            message_ts=message_ts,
-                            source_channel=channel_name,
-                        )
-
-                if prep is not None:
-                    llm_merge = await self._incident_handler.run_existing_incident_llm(
-                        prep
-                    )
-                    pending_close: PendingClosedAlertEdit | None = None
-                    async with self._open_incident_lock:
-                        pending_close = await self._incident_handler.apply_existing_incident_locked_phase(
-                            prep, llm_merge
-                        )
-                    if pending_close is not None:
-                        closed_subject = await self._incident_handler.subject_line_for_closed_incident(
-                            unified_text=pending_close.unified_text,
-                            close_reason=pending_close.close_reason,
-                            incident_start=pending_close.incident_start,
-                            closed_at=pending_close.closed_at,
-                            log_file_suffix=pending_close.log_file_suffix,
-                        )
-                        try:
-                            await self._telegram_sender.edit_alert(
-                                pending_close.incident_message_id,
-                                channels=pending_close.channels,
-                                unified_text=pending_close.unified_text,
-                                start_at=pending_close.start_at,
-                                ended_at=pending_close.end_at,
-                                alert_priority=pending_close.alert_priority,
-                                close_reason=pending_close.close_reason,
-                                subject=closed_subject,
+                    if self._tracker.get_open_incident() is None:
+                        latest_seen = self._watermarks.latest(channel_id)
+                        if message_id < latest_seen:
+                            logger.debug(
+                                "Ignoring edited_message opener candidate as old"
                             )
-                        except Exception:
-                            logger.exception(
-                                "Failed to edit alert after LLM-close (outside tracker lock)"
-                            )
-                        else:
-                            logger.info(
-                                f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed)",
-                            )
-                    return
-
-                qualification = (
-                    await self._incident_handler.run_new_incident_qualification_llm(
+                            return
+                opened_incident: ActiveIncident | None = (
+                    self._tracker.get_open_incident()
+                )
+                logger.info(
+                    f"Main | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
+                )
+                if opened_incident is not None:
+                    prep = self._incident_handler.build_existing_incident_prep(
+                        opened_incident=opened_incident,
                         channel_id=channel_id,
                         channel_name=channel_name,
+                        raw_text=raw_text,
                         text=text,
                         event_type=event_type,
+                        message_ts=message_ts,
+                        message_id=message_id,
+                        parent_message_id=parent_message_id,
                         message=message,
-                        recent_closure_appendix=recent_appendix,
                     )
-                )
-                async with self._open_incident_lock:
-                    merge_deadline_at = (
-                        await self._incident_handler.commit_new_incident_after_llm(
-                            channel_id=channel_id,
-                            channel_name=channel_name,
-                            raw_text=raw_text,
-                            text=text,
-                            event_type=event_type,
-                            message_ts=message_ts,
-                            message_id=message_id,
-                            parent_message_id=parent_message_id,
-                            response=qualification,
-                        )
+                else:
+                    recent_appendix = self._tracker.recent_closure_prompt_appendix(
+                        message_ts=message_ts,
+                        source_channel=channel_name,
                     )
 
-            # Arm TTL eviction edit unless this path did not open an incident.
-            if merge_deadline_at is not None:
-                self._schedule_merge_deadline(merge_deadline_at)
+            if prep is not None:
+                await self._run_merge_pipeline(prep)
+                return
+
+            await self._run_new_incident_pipeline(
+                channel_id=channel_id,
+                channel_name=channel_name,
+                raw_text=raw_text,
+                text=text,
+                event_type=event_type,
+                message_ts=message_ts,
+                message_id=message_id,
+                parent_message_id=parent_message_id,
+                message=message,
+                recent_appendix=recent_appendix,
+            )
+
+    async def _run_merge_pipeline(self, prep: ExistingIncidentPrep) -> None:
+        llm_merge = await self._incident_handler.run_existing_incident_llm(prep)
+        pending_close: PendingClosedAlertEdit | None = None
+        async with self._open_incident_lock:
+            pending_close = (
+                await self._incident_handler.apply_existing_incident_locked_phase(
+                    prep, llm_merge
+                )
+            )
+        if pending_close is not None:
+            closed_subject = (
+                await self._incident_handler.subject_line_for_closed_incident(
+                    unified_text=pending_close.unified_text,
+                    close_reason=pending_close.close_reason,
+                    incident_start=pending_close.incident_start,
+                    closed_at=pending_close.closed_at,
+                    log_file_suffix=pending_close.log_file_suffix,
+                )
+            )
+            try:
+                await self._telegram_sender.edit_alert(
+                    pending_close.incident_message_id,
+                    channels=pending_close.channels,
+                    unified_text=pending_close.unified_text,
+                    start_at=pending_close.start_at,
+                    ended_at=pending_close.end_at,
+                    alert_priority=pending_close.alert_priority,
+                    close_reason=pending_close.close_reason,
+                    subject=closed_subject,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to edit alert after LLM-close (outside tracker lock)"
+                )
+            else:
+                logger.info(
+                    f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed)",
+                )
+
+    async def _run_new_incident_pipeline(
+        self,
+        *,
+        channel_id: int,
+        channel_name: str,
+        raw_text: str,
+        text: str,
+        event_type: str,
+        message_ts: datetime,
+        message_id: int,
+        parent_message_id: int | None,
+        message,
+        recent_appendix: str | None,
+    ) -> None:
+        async with self._incident_pipeline_sem:
+            async with self._open_incident_lock:
+                if self._tracker.get_open_incident() is not None:
+                    prep = self._incident_handler.build_existing_incident_prep(
+                        opened_incident=self._tracker.get_open_incident(),
+                        channel_id=channel_id,
+                        channel_name=channel_name,
+                        raw_text=raw_text,
+                        text=text,
+                        event_type=event_type,
+                        message_ts=message_ts,
+                        message_id=message_id,
+                        parent_message_id=parent_message_id,
+                        message=message,
+                    )
+                else:
+                    prep = None
+            if prep is not None:
+                await self._run_merge_pipeline(prep)
+                return
+
+            qualification = (
+                await self._incident_handler.run_new_incident_qualification_llm(
+                    channel_id=channel_id,
+                    channel_name=channel_name,
+                    text=text,
+                    event_type=event_type,
+                    message=message,
+                    recent_closure_appendix=recent_appendix,
+                )
+            )
+            merge_deadline_at: datetime | None = None
+            async with self._open_incident_lock:
+                if self._tracker.get_open_incident() is not None:
+                    logger.info(
+                        f"{IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | Slot filled during qualification; converting to merge",
+                    )
+                    prep = self._incident_handler.build_existing_incident_prep(
+                        opened_incident=self._tracker.get_open_incident(),
+                        channel_id=channel_id,
+                        channel_name=channel_name,
+                        raw_text=raw_text,
+                        text=text,
+                        event_type=event_type,
+                        message_ts=message_ts,
+                        message_id=message_id,
+                        parent_message_id=parent_message_id,
+                        message=message,
+                    )
+                else:
+                    prep = None
+            if prep is not None:
+                await self._run_merge_pipeline(prep)
+                return
+
+            async with self._open_incident_lock:
+                merge_deadline_at = (
+                    await self._incident_handler.commit_new_incident_after_llm(
+                        channel_id=channel_id,
+                        channel_name=channel_name,
+                        raw_text=raw_text,
+                        text=text,
+                        event_type=event_type,
+                        message_ts=message_ts,
+                        message_id=message_id,
+                        parent_message_id=parent_message_id,
+                        response=qualification,
+                    )
+                )
+        if merge_deadline_at is not None:
+            self._schedule_merge_deadline(merge_deadline_at)
 
     async def _process_message_with_retries(self, event, event_type: str) -> None:
         """Run _process_message with exponential backoff on transient failures."""
@@ -860,29 +932,28 @@ class LionsRoar:
         message_ts = utc_now()
         reprocess_pack: tuple[ActiveIncident, str, str] | None = None
         grace_incident_id: str | None = None
-        async with self._incident_pipeline_sem:
-            async with self._open_incident_lock:
-                outcome = self._incident_handler.handle_message_deletion(
-                    channel_id=chat_id,
-                    deleted_message_ids=deleted_ids,
-                    message_ts=message_ts,
-                )
-                if outcome is None:
+        async with self._open_incident_lock:
+            outcome = self._incident_handler.handle_message_deletion(
+                channel_id=chat_id,
+                deleted_message_ids=deleted_ids,
+                message_ts=message_ts,
+            )
+            if outcome is None:
+                return
+            logger.info(
+                f"Main | {json_log_maker(chat_id=chat_id, deleted_ids=deleted_ids, incident_id=outcome.incident_id, grace=bool(outcome.grace_close), reprocess=outcome.reprocess)} | Source message deletion processed",
+            )
+            if outcome.grace_close is not None:
+                grace_incident_id = outcome.grace_close.incident_id
+            elif outcome.reprocess:
+                opened = self._tracker.get_open_incident()
+                if opened is None:
                     return
-                logger.info(
-                    f"Main | {json_log_maker(chat_id=chat_id, deleted_ids=deleted_ids, incident_id=outcome.incident_id, grace=bool(outcome.grace_close), reprocess=outcome.reprocess)} | Source message deletion processed",
+                reprocess_pack = (
+                    copy.deepcopy(opened),
+                    self._tracker.source_messages_context(),
+                    outcome.incident_id,
                 )
-                if outcome.grace_close is not None:
-                    grace_incident_id = outcome.grace_close.incident_id
-                elif outcome.reprocess:
-                    opened = self._tracker.get_open_incident()
-                    if opened is None:
-                        return
-                    reprocess_pack = (
-                        copy.deepcopy(opened),
-                        self._tracker.source_messages_context(),
-                        outcome.incident_id,
-                    )
 
         if grace_incident_id is not None:
             await self._apply_source_deleted_grace_close(grace_incident_id)

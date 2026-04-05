@@ -63,6 +63,8 @@ Your decisions:
 
 3 - ended — Has the incident ended?
     True when: all-clear or safe to leave shelter; scope confirmed entirely outside priority areas (narrowed to צפון, נגב, שפלה, etc.); no remaining active danger.
+    Scope-close trigger (CRITICAL): Once the combined information from all sources establishes that the threat targets ONLY areas outside the priority areas (e.g. only נגב/דרום, only צפון/חיפה, or both but NOT גבעתיים/גוש דן/המרכז), set ended=true and close_reason="out_of_subscriber_areas" IMMEDIATELY — even if the threat itself is still active. Named cities like חיפה, באר שבע, דימונה, אשקלון are all outside the priority areas. Release time / shelter-release announcements (צפי שחרור) for non-priority areas further confirm the incident is outside scope.
+    Do NOT keep ended=false just because the overall event is still developing — once it is clear the threat will not affect the priority areas, end it.
     close_reason: "all_clear" or "out_of_subscriber_areas" as appropriate. Null when ended=false.
 
 4 - qualified / priority — Classification of the combined situation.

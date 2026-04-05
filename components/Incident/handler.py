@@ -244,15 +244,17 @@ class IncidentHandler:
                 message_ts=message_ts,
             )
 
+        has_response_text = bool((llm_response.response_message or "").strip()) if llm_response else False
         if (
             llm_response is None
             or (not is_source_edit and llm_response.related is False)
             or (
                 not llm_response.qualified
                 and not llm_response.ended
+                and not llm_response.related
                 and (
                     not is_source_edit
-                    or not (llm_response.response_message or "").strip()
+                    or not has_response_text
                 )
             )
         ):
@@ -336,7 +338,14 @@ class IncidentHandler:
                     MessagePriority.INFORMATIONAL,
                     MessagePriority.NONE,
                 ):
-                    self._schedule_informational_grace(grace_incident.incident_id)
+                    newly_informational = pre_merge_priority not in (
+                        MessagePriority.INFORMATIONAL,
+                        MessagePriority.NONE,
+                    )
+                    if newly_informational or canceled_deferred_close:
+                        self._schedule_informational_grace(
+                            grace_incident.incident_id
+                        )
                 else:
                     self._cancel_informational_grace()
 
@@ -585,14 +594,23 @@ class IncidentHandler:
         eff = llm_response if llm_response is not None else None
         ended_flag = bool(eff and eff.ended)
         if not ended_flag and not close_timer_locked:
-            self._cancel_deferred_close(opened_incident.incident_id)
+            canceled_deferred_close = self._cancel_deferred_close(
+                opened_incident.incident_id
+            )
             grace_incident = self._tracker.get_open_incident()
             if grace_incident is not None:
                 if grace_incident.alert_priority in (
                     MessagePriority.INFORMATIONAL,
                     MessagePriority.NONE,
                 ):
-                    self._schedule_informational_grace(grace_incident.incident_id)
+                    newly_informational = pre_merge_priority not in (
+                        MessagePriority.INFORMATIONAL,
+                        MessagePriority.NONE,
+                    )
+                    if newly_informational or canceled_deferred_close:
+                        self._schedule_informational_grace(
+                            grace_incident.incident_id
+                        )
                 else:
                     self._cancel_informational_grace()
 
