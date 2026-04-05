@@ -1,4 +1,8 @@
-PRIORITY_AREAS = "גבעתיים (Givatayim), גוש דן (Gush Dan), המרכז (central Israel)"
+PRIORITY_AREAS = (
+    "גבעתיים (Givatayim), גוש דן (Gush Dan), המרכז (central Israel — "
+    "Givatayim is in the Central District; rockets or salvo focus “למרכז/מיקוד למרכז/המרכז” "
+    "are in-scope for this family)"
+)
 
 PRIORITY_SCALE = """Priority levels:
 - high: גבעתיים or a named גוש דן / המרכז city is **explicitly stated** as an affected area or required to take shelter. Generic nationwide alerts, nearby regions (שרון, שפלה, בקעה), or urgency wording alone are NOT enough for high.
@@ -12,7 +16,7 @@ DISQUALIFIERS = """NOT qualified (set qualified=false, priority=none) when ANY o
 - Past event report: something that already happened (e.g. "הנפילה", "במטח האחרון", past-tense explosions, impacts, or interceptions). "הותר לפרסום" (military publication clearance) of a past impact is still a past event — geographic relevance does NOT override this rule.
 - All-clear / safe to leave shelter (ניתן לצאת, סיום חובת שהייה במרחב מוגן).
 - Live-index header ("אזעקות כעת", "שיגורים כעת") without explicit instructions targeting the priority areas.
-- Threat explicitly limited to areas outside the priority areas (e.g. נגב, צפון, גולן, גליל, אילת, ירושלים, השפלה).
+- Threat explicitly limited to areas outside the priority areas (e.g. נגב, צפון, גולן, גליל, אילת, ירושלים, השפלה). Refinements toward המרכז, מיקוד למרכז, למרכז, or מחוז המרכז are NOT “outside” — that is the same region as גבעתיים/גוש דן.
 - City hard override: the update names specific cities and NONE of them are priority area cities — set qualified=false, priority=none regardless of urgency wording."""
 
 FAITHFULNESS = """Faithfulness — CRITICAL:
@@ -64,6 +68,7 @@ Your decisions:
 3 - ended — Has the incident ended?
     True when: all-clear or safe to leave shelter; scope confirmed entirely outside priority areas (narrowed to צפון, נגב, שפלה, etc.); no remaining active danger.
     Scope-close trigger (CRITICAL): Once the combined information from all sources establishes that the threat targets ONLY areas outside the priority areas (e.g. only נגב/דרום, only צפון/חיפה, or both but NOT גבעתיים/גוש דן/המרכז), set ended=true and close_reason="out_of_subscriber_areas" IMMEDIATELY — even if the threat itself is still active. Named cities like חיפה, באר שבע, דימונה, אשקלון are all outside the priority areas. Release time / shelter-release announcements (צפי שחרור) for non-priority areas further confirm the incident is outside scope.
+    Center / מרכז guard (CRITICAL): גבעתיים sits in the Central District. Any line that places, narrows, or focuses the salvo toward המרכז, מיקוד למרכז, למרכז, מרכז הארץ, or the Tel Aviv metro keeps the threat inside the priority areas — do NOT end with out_of_subscriber_areas. Only end that way when scope is clearly confined to regions that exclude the center (and exclude גוש דן) — not when the family-facing narrative still describes impact or trajectory toward the center.
     Do NOT keep ended=false just because the overall event is still developing — once it is clear the threat will not affect the priority areas, end it.
     close_reason: "all_clear" or "out_of_subscriber_areas" as appropriate. Null when ended=false.
 

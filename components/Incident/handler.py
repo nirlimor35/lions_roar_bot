@@ -6,7 +6,12 @@ from datetime import datetime
 from loguru import logger
 
 import components.llm.llm_client as LLMClient
-from components.constants import CloseReason, MessagePriority, MessageType
+from components.constants import (
+    CloseReason,
+    IncidentHandlerLog,
+    MessagePriority,
+    MessageType,
+)
 from components.Incident.log import (
     append_incident_closure,
     append_message,
@@ -18,7 +23,6 @@ from components.Incident.tracker import (
     IncidentTracker,
 )
 from components.messages import TelegramMessageSender
-from components.share import IncidentHandlerLog
 from components.utils import (
     clamp_word_count,
     ensure_utc,
@@ -244,7 +248,11 @@ class IncidentHandler:
                 message_ts=message_ts,
             )
 
-        has_response_text = bool((llm_response.response_message or "").strip()) if llm_response else False
+        has_response_text = (
+            bool((llm_response.response_message or "").strip())
+            if llm_response
+            else False
+        )
         if (
             llm_response is None
             or (not is_source_edit and llm_response.related is False)
@@ -252,10 +260,7 @@ class IncidentHandler:
                 not llm_response.qualified
                 and not llm_response.ended
                 and not llm_response.related
-                and (
-                    not is_source_edit
-                    or not has_response_text
-                )
+                and (not is_source_edit or not has_response_text)
             )
         ):
             logger.info(
@@ -343,9 +348,7 @@ class IncidentHandler:
                         MessagePriority.NONE,
                     )
                     if newly_informational or canceled_deferred_close:
-                        self._schedule_informational_grace(
-                            grace_incident.incident_id
-                        )
+                        self._schedule_informational_grace(grace_incident.incident_id)
                 else:
                     self._cancel_informational_grace()
 
@@ -531,9 +534,7 @@ class IncidentHandler:
 
         stripped = (llm_response.response_message or "").strip() if llm_response else ""
         ignored = llm_response is None or (
-            not llm_response.qualified
-            and not llm_response.ended
-            and not stripped
+            not llm_response.qualified and not llm_response.ended and not stripped
         )
         if ignored:
             fb_raw = self._tracker.joined_remaining_sanitized_sources()
@@ -543,7 +544,9 @@ class IncidentHandler:
                     f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess ignored and no fallback text",
                 )
                 return None
-            self._tracker.update_after_merge(fb, None, alert_priority=pre_merge_priority)
+            self._tracker.update_after_merge(
+                fb, None, alert_priority=pre_merge_priority
+            )
             logger.info(
                 f"{IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Reprocess fallback from remaining sources",
             )
@@ -608,9 +611,7 @@ class IncidentHandler:
                         MessagePriority.NONE,
                     )
                     if newly_informational or canceled_deferred_close:
-                        self._schedule_informational_grace(
-                            grace_incident.incident_id
-                        )
+                        self._schedule_informational_grace(grace_incident.incident_id)
                 else:
                     self._cancel_informational_grace()
 

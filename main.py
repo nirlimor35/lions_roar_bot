@@ -17,6 +17,7 @@ from components.bot_admin import (
 from components.constants import (
     INFORMATIONAL_GRACE_PERIOD,
     CloseReason,
+    IncidentHandlerLog,
     MessagePriority,
     MessageType,
 )
@@ -24,7 +25,6 @@ from components.handle_wm import ChannelWatermarks, EditTextCache
 from components.Incident.handler import (
     ExistingIncidentPrep,
     IncidentHandler,
-    IncidentHandlerLog,
     PendingClosedAlertEdit,
 )
 from components.Incident.tracker import ActiveIncident, IncidentTracker
@@ -598,7 +598,9 @@ class LionsRoar:
         else:
             edit_text = message.text or ""
             if not skip_edit_text_cache_gate:
-                if self._edit_text_cache.is_duplicate(channel_id, message_id, edit_text):
+                if self._edit_text_cache.is_duplicate(
+                    channel_id, message_id, edit_text
+                ):
                     logger.debug(
                         f"Edit deduped (unchanged text) | channel_id={channel_id} | message_id={message_id}"
                     )
@@ -833,7 +835,9 @@ class LionsRoar:
         self._cancel_informational_grace()
         should_defer, seconds = self._deferred_close_rule(CloseReason.SOURCE_DELETED)
         if should_defer and seconds > 0:
-            self._schedule_deferred_close(incident_id, CloseReason.SOURCE_DELETED, seconds)
+            self._schedule_deferred_close(
+                incident_id, CloseReason.SOURCE_DELETED, seconds
+            )
             async with self._open_incident_lock:
                 open_i = self._tracker.get_open_incident()
             if open_i is None or open_i.incident_id != incident_id:
@@ -972,12 +976,14 @@ class LionsRoar:
                 llm_response=llm_response,
             )
         if pending_close is not None:
-            closed_subject = await self._incident_handler.subject_line_for_closed_incident(
-                unified_text=pending_close.unified_text,
-                close_reason=pending_close.close_reason,
-                incident_start=pending_close.incident_start,
-                closed_at=pending_close.closed_at,
-                log_file_suffix=pending_close.log_file_suffix,
+            closed_subject = (
+                await self._incident_handler.subject_line_for_closed_incident(
+                    unified_text=pending_close.unified_text,
+                    close_reason=pending_close.close_reason,
+                    incident_start=pending_close.incident_start,
+                    closed_at=pending_close.closed_at,
+                    log_file_suffix=pending_close.log_file_suffix,
+                )
             )
             try:
                 await self._telegram_sender.edit_alert(
