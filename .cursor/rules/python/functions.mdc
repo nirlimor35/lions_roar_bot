@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+- Use def for pure functions and async def for asynchronous operations
+- Avoid docstrings for functions, unless instructed otherwise

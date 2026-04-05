@@ -1,0 +1,36 @@
+session_name: lions_roar_example
+app_id: 1234567890
+api_hash: a5fdac...
+destination_chat_id: -1001234567890
+monitored_chats:
+  - raknetooooo
+  - newssil
+  - News_il_h
+  - pkpoi
+  - ramreports
+  - nir_lr_test_1
+  - nir_lr_test_2
+LLM_models:
+  day: gpt-5.4-mini
+  night: gpt-5.4
+openai_api_key: sk-proj-DRrKRT8f...
+bot_token: 86779191233:AAHg...
+deferred_close:
+  all_clear:
+    enabled: true
+    seconds: 120
+  out_of_subscriber_areas:
+    enabled: true
+    seconds: 120
+  informational_grace:
+    enabled: false
+    seconds: 0
+  source_deleted:
+    enabled: true
+    seconds: 120
+  ttl:
+    enabled: false
+    seconds: 0
+  manual:
+    enabled: false
+    seconds: 0

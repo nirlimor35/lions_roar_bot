@@ -1,0 +1,22 @@
+*.session
+*.session-journal
+__pycache__
+*.pyc
+.git
+*.session
+.env
+.venv
+venv
+docs
+*.idea
+*poc/
+.DS_Store
+config.yaml
+
+# FOR TESTING
+build.log
+add_env.sh
+test_dir/**
+file.log
+*.json
+TODO.md

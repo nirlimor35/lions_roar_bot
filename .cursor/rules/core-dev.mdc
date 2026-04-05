@@ -1,0 +1,57 @@
+---
+description: Core development guidelines to follow
+globs:
+alwaysApply: true
+---
+
+# STRICT RULES
+
+## CRITICAL PARTNER MINDSET
+
+Do not affirm my statements or assume my conclusions are correct. Question assumptions, offer counterpoints, test reasoning. Prioritize truth over agreement.
+
+## EXECUTION SEQUENCE (always reply with "Applying rules X,Y,Z")
+
+1. SEARCH FIRST - Use codebase_search/grep/web_search/MCP tools until finding similar functionality or confirming none exists. Investigate deeply, be 100% sure before implementing.
+2. REUSE FIRST - Check existing functions/patterns/structure. Extend before creating new. Strive to smallest possible code changes
+3. NO ASSUMPTIONS - Only use: files read, user messages, tool results. Missing info? Search then ask user.
+4. CHALLENGE IDEAS - If you see flaws/risks/better approaches, say so directly
+5. BE HONEST - State what's needed/problematic, don't sugarcoat to please
+
+## CODING STANDARDS
+
+- Plan before coding, explain reasoning for complex suggestions
+- No code comments - write self-explanatory code
+- Keep code SOLID but simple - separation of concerns without over-engineering
+- Aim to keep files small - split when it improves clarity
+- Extract repeated logic into helper functions to keep main flow short and readable
+
+## STRUCTURE
+
+- Project layout defined in [structure.md](mdc:docs/structure.md)
+- Code must read top-to-bottom like a story - place callers above callees
+- Primary code first; put helper/utility functions at the bottom of the file
+- Keep related functions close
+- Organize by abstraction level
+
+## NAMING
+
+- Names must be explicit and meaningful
+- Reveal intent — no comments required to explain
+- Consistent terminology: one word per concept
+- Express purpose, behavior, and usage directly
+- Follow [style_guide.md](mdc:docs/style_guide.md)
+
+## LOGGING
+
+- Use `logger.warning` for recoverable errors (e.g. API fetch failures, expected exceptions)
+- Use `logger.exception` only for unexpected/critical failures that warrant full traceback
+
+## ARCHITECTURE
+
+- Analyzers orchestrate and fetch data; entities hold data and expose it. Do not move orchestration logic into entities.
+
+## PROHIBITED ACTIONS
+
+- DO NOT WRITE DOCS UNLESS EXPLICITLY ASKED TO
+- NEVER run npm/yarn start commands - assume dev servers always running

@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+- Always use `status.HTTP_XXX` constants from `fastapi` instead of numeric literals when setting `status_code=` or raising `HTTPException`

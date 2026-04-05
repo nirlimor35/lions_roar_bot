@@ -1,0 +1,9 @@
+---
+description: 
+globs: *
+alwaysApply: false
+---
+- Use type hints for all API endpoints function signatures. Prefer Pydantic models over raw dictionaries for input validation.
+- Add type hints for function arguments and return values.
+- Assume Python 3.11 for typing.
+- Use the built in tuple, dict, list instead of importing them from typing.
