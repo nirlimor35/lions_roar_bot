@@ -308,9 +308,12 @@ class LionsRoar:
                         alert_priority=snapshot.alert_priority,
                         close_reason=close_reason,
                         subject=closed_subject,
+                        alert_body_segments=list(snapshot.alert_body_segments),
                     )
                 except Exception:
-                    logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after deferred close")
+                    logger.exception(
+                        f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after deferred close"
+                    )
                 else:
                     logger.info(
                         f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id, close_reason=close_reason)} | Deferred-close destination alert edited"
@@ -437,9 +440,12 @@ class LionsRoar:
                             alert_priority=ended.alert_priority,
                             close_reason=CloseReason.TTL,
                             subject=closed_subject,
+                            alert_body_segments=list(ended.alert_body_segments),
                         )
                     except Exception:
-                        logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after TTL expiry")
+                        logger.exception(
+                            f"{ModuleColors.INCIDENT_HANDLER} | Failed to edit alert after TTL expiry"
+                        )
                     else:
                         logger.info(
                             f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=ended.incident_id, message_id=ended.incident_message_id)} | TTL destination alert edited",
@@ -484,6 +490,7 @@ class LionsRoar:
                     pending_start_time = opened.start_time
                     pending_priority = opened.alert_priority
                     pending_subject = opened.subject
+                    pending_alert_segments = list(opened.alert_body_segments)
                     self._schedule_deferred_close(
                         incident_id, CloseReason.INFORMATIONAL_GRACE, defer_seconds
                     )
@@ -501,6 +508,7 @@ class LionsRoar:
                             subject=pending_subject,
                             pending_close_reason=CloseReason.INFORMATIONAL_GRACE,
                             pending_close_seconds=defer_seconds,
+                            alert_body_segments=pending_alert_segments,
                         )
                     return
                 snapshot = self._tracker.end_incident(utc_now())
@@ -537,6 +545,7 @@ class LionsRoar:
                         alert_priority=snapshot.alert_priority,
                         close_reason=CloseReason.INFORMATIONAL_GRACE,
                         subject=closed_subject,
+                        alert_body_segments=list(snapshot.alert_body_segments),
                     )
                 except Exception:
                     logger.exception(
@@ -592,7 +601,9 @@ class LionsRoar:
             if not skip_new_message_watermark_check and self._watermarks.is_old(
                 channel_id, message_id
             ):
-                logger.debug(f"{ModuleColors.MESSAGE_PROCESSING} | Duplicate new_message skipped")
+                logger.debug(
+                    f"{ModuleColors.MESSAGE_PROCESSING} | Duplicate new_message skipped"
+                )
                 return
             self._edit_text_cache.record(channel_id, message_id, message.text or "")
 
@@ -708,6 +719,7 @@ class LionsRoar:
                     alert_priority=pending_close.alert_priority,
                     close_reason=pending_close.close_reason,
                     subject=closed_subject,
+                    alert_body_segments=pending_close.alert_body_segments,
                 )
             except Exception:
                 logger.exception(
@@ -861,6 +873,7 @@ class LionsRoar:
                         subject=open_i.subject,
                         pending_close_reason=pr,
                         pending_close_seconds=ps,
+                        alert_body_segments=list(open_i.alert_body_segments),
                     )
                 except Exception:
                     logger.exception(
@@ -914,6 +927,7 @@ class LionsRoar:
                     alert_priority=snapshot.alert_priority,
                     close_reason=CloseReason.SOURCE_DELETED,
                     subject=closed_subject,
+                    alert_body_segments=list(snapshot.alert_body_segments),
                 )
             except Exception:
                 logger.exception(
@@ -996,6 +1010,7 @@ class LionsRoar:
                     alert_priority=pending_close.alert_priority,
                     close_reason=pending_close.close_reason,
                     subject=closed_subject,
+                    alert_body_segments=pending_close.alert_body_segments,
                 )
             except Exception:
                 logger.exception(
@@ -1009,7 +1024,9 @@ class LionsRoar:
     async def init_watermarks(self) -> None:
         # With no allowlist, startup scan is skipped; first live message sets position.
         if not self.monitored_chats:
-            logger.info(f"{ModuleColors.MAIN} | Watermarks | skip init (no monitored_chats allowlist)")
+            logger.info(
+                f"{ModuleColors.MAIN} | Watermarks | skip init (no monitored_chats allowlist)"
+            )
             return
 
         chats = monitored_chats_list(self.monitored_chats)
@@ -1049,7 +1066,9 @@ class LionsRoar:
         async with self._open_incident_lock:
             opened = self._tracker.get_open_incident()
             if opened is None:
-                logger.info(f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | no open incident")
+                logger.info(
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | no open incident"
+                )
                 return "אין אירוע פתוח כרגע."
             logger.info(
                 f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | {json_log_maker(incident_id=opened.incident_id)} | Manual close - ending incident",
@@ -1089,9 +1108,12 @@ class LionsRoar:
                     close_reason=CloseReason.MANUAL,
                     subject=closed_subject,
                     custom_close_reason=custom_close_reason,
+                    alert_body_segments=list(snapshot.alert_body_segments),
                 )
             except Exception:
-                logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | Failed to edit alert after manual close")
+                logger.exception(
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | Failed to edit alert after manual close"
+                )
             else:
                 logger.info(
                     f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.MANUAL} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id)} | destination alert edited",
@@ -1160,7 +1182,9 @@ class LionsRoar:
         username = getattr(me, "username", None)
 
         logger.info(f"{ModuleColors.MAIN} | Connected as {username or me.id}")
-        logger.info(f"{ModuleColors.MAIN} | Monitoring chats={self.monitored_chats or 'all'}")
+        logger.info(
+            f"{ModuleColors.MAIN} | Monitoring chats={self.monitored_chats or 'all'}"
+        )
 
         cfg = type(self).config
         ac = cfg.get("admin_command_chat_id")

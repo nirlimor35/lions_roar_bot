@@ -17,6 +17,7 @@ from components.constants import (
 )
 from components.utils import (
     ensure_utc,
+    format_timelined_alert_body,
     format_ts_il,
     json_log_maker,
     sanitize_alert_body_text,
@@ -76,6 +77,7 @@ class TelegramMessageSender:
         custom_close_reason: str | None = None,
         pending_close_reason: CloseReason | None = None,
         pending_close_seconds: int | None = None,
+        alert_body_segments: list[tuple[datetime, str]] | None = None,
     ) -> str:
         if ended_at is not None:
             prefix = AlertTitles.ENDED
@@ -93,7 +95,10 @@ class TelegramMessageSender:
                 ["<b>ערוצים:</b>", *[f"{_RLI}- {name}{_PDI}" for name in safe_channels]]
             )
 
-        body_plain = sanitize_alert_body_text(unified_text)
+        if alert_body_segments:
+            body_plain = format_timelined_alert_body(unified_text, alert_body_segments)
+        else:
+            body_plain = sanitize_alert_body_text(unified_text)
 
         lines = [
             f"<b>{html.escape(prefix)}</b>",
@@ -115,7 +120,7 @@ class TelegramMessageSender:
             expected_close_at = ensure_utc(utc_now() + timedelta(seconds=wait_seconds))
             lines.append("")
             lines.append(
-                f"<b>סטטוס:</b> מועמד לסגירה בעוד כ-{wait_minutes} דקות ({wait_seconds} שניות)"
+                f"<b>סטטוס:</b> מועמד לסגירה בעוד כ-{wait_minutes} דקות"
             )
             lines.append(
                 f"<b>סגירה צפויה:</b> {html.escape(format_ts_il(expected_close_at))}"
@@ -269,6 +274,7 @@ class TelegramMessageSender:
         custom_close_reason: str | None = None,
         pending_close_reason: CloseReason | None = None,
         pending_close_seconds: int | None = None,
+        alert_body_segments: list[tuple[datetime, str]] | None = None,
     ) -> int:
         body = self._build_alert_html(
             channels,
@@ -281,6 +287,7 @@ class TelegramMessageSender:
             custom_close_reason=custom_close_reason,
             pending_close_reason=pending_close_reason,
             pending_close_seconds=pending_close_seconds,
+            alert_body_segments=alert_body_segments,
         )
         resp = await self._request_with_retry(
             "sendMessage",
@@ -335,6 +342,7 @@ class TelegramMessageSender:
         custom_close_reason: str | None = None,
         pending_close_reason: CloseReason | None = None,
         pending_close_seconds: int | None = None,
+        alert_body_segments: list[tuple[datetime, str]] | None = None,
     ) -> bool:
         body = self._build_alert_html(
             channels,
@@ -347,6 +355,7 @@ class TelegramMessageSender:
             custom_close_reason=custom_close_reason,
             pending_close_reason=pending_close_reason,
             pending_close_seconds=pending_close_seconds,
+            alert_body_segments=alert_body_segments,
         )
         resp = await self._request_with_retry(
             "editMessageText",
