@@ -15,6 +15,7 @@ DISQUALIFIERS = (
     "- News/wire report, journalist attribution (רויטרס, AP, כתב, דיווח), analyst or diplomatic commentary, political/legal/diplomatic news (court rulings, statements, sanctions), strategic threats framed as news.\n"
     '- Story coverage or documentation (e.g. "תיעוד").\n'
     '- Past event report: something that already happened (e.g. "הנפילה", "במטח האחרון", past-tense explosions, impacts, or interceptions). "הותר לפרסום" (military publication clearance) of a past impact is still a past event — geographic relevance does NOT override this rule.\n'
+    '- **Time-window recap:** Framing like "בשעה האחרונה", "בשעות האחרונות", or "בשלב הזה" that summarizes rocket fire, interceptions, impacts, or casualties as **facts already on the record** (e.g. "יש יירוטים ונפילות", "לא דווח על נפגעים") without a **concurrent** live civil-defense instruction in the same message (חובת שהייה, אזעקה פעילה, מיקוד כעת, שיגורים בדרך, shelter now for the subscriber area). That is news-style situational wrap-up, not a Pikud Haoref-style opener — qualified=false.\n'
     '- All-clear / safe to leave shelter (ניתן לצאת, סיום חובת שהייה במרחב מוגן).\n'
     '- Live-index header ("אזעקות כעת", "שיגורים כעת") without explicit instructions targeting the priority areas.\n'
     '- Threat explicitly limited to areas outside the priority areas (e.g. נגב, צפון, גולן, גליל, אילת, ירושלים, השפלה). Refinements toward המרכז, מיקוד למרכז, למרכז, or מחוז המרכז are NOT “outside” — that is the same region as גבעתיים/גוש דן.\n'
@@ -39,10 +40,13 @@ FIRST_PROMPT = (
     "- When the message refers to missile, rocket or an unmanned aerial vehicle, or other launch to Israel.\n"
     "- When the message refers to preparations for missile or rocket launch to Israel.\n"
     "\n"
+    "Opening a **new** incident: the two bullets above are **necessary** but **not sufficient**. Set qualified=false if any DISQUALIFIER applies or any standalone-opener rule below applies — rockets, Lebanon, or Iran named in a **recap** still means qualified=false.\n"
+    "\n"
     "Standalone opener only (no incident open yet) — these narrow the missile bullets above:\n"
     '- Do NOT set qualified=true for **situational reports, roundups, or headline statistics**: tallying or summarizing many alert zones or events (e.g. "כמעט N זירות", "עשרות אזעקות", counting זירות/רשויות) as a **picture of the situation**, especially with **בעקבות הירי / בעקבות המטח / בעקבות השיגורים** (journalistic "in the wake of" framing). That is **news-style summary**, not a single Pikud Haoref-style actionable line — qualified=false even if המרכז or Iran appear.\n'
     '- Sensational editorial openers (מטורף, וואו, שובר, בלעדי, דיווח) when the rest is **aggregate or summary** (counts, breadth, "כמעט N") — qualified=false unless the same line also gives an **immediate** active threat to the priority areas in civil-defense terms (שיגורים בדרך, מיקוד, חובת שהייה, חדירה, אזעקה פעילה, ETA, arrival).\n'
     'Still qualify when the line is a **direct operational alert** (incoming focus, shelter, active sirens, מיקוד למרכז/לגוש דן, שיגורים בדרך) without relying on aggregate counts or "בעקבות" situational wrap-ups as the main content.\n'
+    '- **Past or recap (not a live opener):** Do not open a new incident when the text is backward-looking or summarizes what already unfolded: "הנפילה", "במטח האחרון", past-tense explosions, **"בשעה האחרונה" / "בשעות האחרונות"** as a headline for what occurred, or outcome lines like **"יש יירוטים ונפילות"** / **"לא דווח על נפגעים"** with no **right-now** shelter/siren/incoming-focus line for the family. That pattern is a news roundup, not an actionable opening alert.\n'
     "\n"
     f"{DISQUALIFIERS}\n"
     f"{PRIORITY_SCALE}\n"
