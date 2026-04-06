@@ -8,10 +8,10 @@ from datetime import datetime
 
 from components.constants import (
     ACTIVE_INCIDENT_TTL,
-    CloseReason,
-    MessagePriority,
     RECENT_OUT_OF_SUBSCRIBER_MAX_UNIFIED_CHARS,
     RECENT_OUT_OF_SUBSCRIBER_WINDOW,
+    CloseReason,
+    MessagePriority,
 )
 from components.utils import ensure_utc, utc_now
 

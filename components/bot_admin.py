@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 import httpx
 from loguru import logger
 
+from components.constants import ModuleColors
 from components.utils import json_log_maker
 
 _MANUAL_CLOSE_CMD = re.compile(r"^/close(?:@\S+)?\s*(.*)$")
@@ -48,12 +49,12 @@ async def run_bot_dm_updates_loop(
         return
     if not bot_token:
         logger.warning(
-            "Bot DM commands enabled but bot_token is missing; skipping getUpdates"
+            f"{ModuleColors.INCIDENT_HANDLER} | Bot DM commands enabled but bot_token is missing; skipping getUpdates"
         )
         return
     base = f"https://api.telegram.org/bot{bot_token}"
     offset = 0
-    logger.info("Bot DM: polling getUpdates for /close")
+    logger.info(f"{ModuleColors.INCIDENT_HANDLER} | Bot DM: polling getUpdates for /close")
     while True:
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(45.0)) as client:
@@ -67,13 +68,13 @@ async def run_bot_dm_updates_loop(
                 )
             if not resp.is_success:
                 logger.warning(
-                    f"getUpdates failed {resp.status_code}: {resp.text[:300]}"
+                    f"{ModuleColors.INCIDENT_HANDLER} | getUpdates failed {resp.status_code}: {resp.text[:300]}"    
                 )
                 await asyncio.sleep(5)
                 continue
             data = resp.json()
             if not data.get("ok"):
-                logger.warning(f"getUpdates not ok: {data}")
+                logger.warning(f"{ModuleColors.INCIDENT_HANDLER} | getUpdates not ok: {data}")
                 await asyncio.sleep(5)
                 continue
             for upd in data.get("result", []):
@@ -93,7 +94,7 @@ async def run_bot_dm_updates_loop(
                     continue
                 if _START_CMD.match(text):
                     logger.info(
-                        f"Bot DM | {json_log_maker(user_id=uid, chat_id=chat_id)} | /start"
+                        f"{ModuleColors.INCIDENT_HANDLER} | Bot DM | {json_log_maker(user_id=uid, chat_id=chat_id)} | /start"
                     )
                     await send_plain_text(chat_id, HELP_TEXT)
                     continue
@@ -101,15 +102,15 @@ async def run_bot_dm_updates_loop(
                 if not ok_close:
                     continue
                 logger.info(
-                    f"Bot DM | {json_log_maker(user_id=uid, chat_id=chat_id)} | Manual close command"
+                    f"{ModuleColors.INCIDENT_HANDLER} | Bot DM | {json_log_maker(user_id=uid, chat_id=chat_id)} | Manual close command"
                 )
                 reply = await manual_close(reason_text)
                 await send_plain_text(chat_id, reply)
         except asyncio.CancelledError:
             raise
         except httpx.HTTPError as exc:
-            logger.warning(f"getUpdates HTTP error: {exc}")
+            logger.warning(f"{ModuleColors.INCIDENT_HANDLER} | getUpdates HTTP error: {exc}")
             await asyncio.sleep(5)
         except Exception:
-            logger.exception("getUpdates loop error")
+            logger.exception(f"{ModuleColors.INCIDENT_HANDLER} | getUpdates loop error")
             await asyncio.sleep(5)
