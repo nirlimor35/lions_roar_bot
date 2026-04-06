@@ -813,8 +813,24 @@ class LionsRoar:
                         response=qualification,
                     )
                 )
+                pre_deleted_grace_id: str | None = None
+                if merge_deadline_at is not None and self._tracker.check_pending_deletion(
+                    channel_id, message_id
+                ):
+                    logger.info(
+                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(channel=channel_name, message_id=message_id)} | Source pre-deleted during qualification — triggering deletion",
+                    )
+                    pre_deletion = self._incident_handler.handle_message_deletion(
+                        channel_id=channel_id,
+                        deleted_message_ids=[message_id],
+                        message_ts=utc_now(),
+                    )
+                    if pre_deletion is not None and pre_deletion.grace_close is not None:
+                        pre_deleted_grace_id = pre_deletion.grace_close.incident_id
         if merge_deadline_at is not None:
             self._schedule_merge_deadline(merge_deadline_at)
+        if pre_deleted_grace_id is not None:
+            await self._apply_source_deleted_grace_close(pre_deleted_grace_id)
 
     async def _process_message_with_retries(self, event, event_type: str) -> None:
         """Run _process_message with exponential backoff on transient failures."""
@@ -952,6 +968,8 @@ class LionsRoar:
         reprocess_pack: tuple[ActiveIncident, str, str] | None = None
         grace_incident_id: str | None = None
         async with self._open_incident_lock:
+            for mid in deleted_ids:
+                self._tracker.record_pending_deletion(chat_id, mid)
             outcome = self._incident_handler.handle_message_deletion(
                 channel_id=chat_id,
                 deleted_message_ids=deleted_ids,

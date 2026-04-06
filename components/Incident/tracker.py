@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from components.constants import (
     ACTIVE_INCIDENT_TTL,
@@ -59,9 +59,12 @@ class IncidentTracker:
     same as a cold start for opening the next incident.
     """
 
+    _PENDING_DELETION_BUFFER_TTL = timedelta(seconds=120)
+
     def __init__(self) -> None:
         self._current_incident: ActiveIncident | None = None
         self._recent_closed_incident: RecentIncidentClosure | None = None
+        self._pending_deletions: dict[tuple[int, int], datetime] = {}
 
     @staticmethod
     def _normalize_channel_id(channel_id: int) -> int:
@@ -189,6 +192,22 @@ class IncidentTracker:
                 f"- channel={item.channel_name} message_id={item.message_id} text={text}"
             )
         return "\n".join(lines)
+
+    def record_pending_deletion(self, channel_id: int, message_id: int) -> None:
+        key = self._source_key(channel_id, message_id)
+        self._pending_deletions[key] = utc_now()
+        self._evict_stale_pending_deletions()
+
+    def check_pending_deletion(self, channel_id: int, message_id: int) -> bool:
+        return self._source_key(channel_id, message_id) in self._pending_deletions
+
+    def _evict_stale_pending_deletions(self) -> None:
+        if not self._pending_deletions:
+            return
+        cutoff = utc_now() - self._PENDING_DELETION_BUFFER_TTL
+        self._pending_deletions = {
+            k: v for k, v in self._pending_deletions.items() if v > cutoff
+        }
 
     def record_recent_incident_closure(
         self,

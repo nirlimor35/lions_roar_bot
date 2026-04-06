@@ -590,6 +590,7 @@ class IncidentHandler:
             )
             cancel_for_source_deleted = (
                 pending_deferred_reason == CloseReason.SOURCE_DELETED
+                and self._tracker.source_message_count > 0
             )
             if escalated_to_high or cancel_for_source_deleted:
                 canceled_deferred_close = self._cancel_deferred_close(
