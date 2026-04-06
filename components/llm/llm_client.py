@@ -18,7 +18,6 @@ from components.llm.prompts import (
     build_first_prompt,
     build_ongoing_prompt,
     build_reprocess_after_deletion_prompt,
-    build_user_message,
 )
 from components.utils import json_log_maker
 
@@ -134,7 +133,9 @@ class LLMClient:
         except json.JSONDecodeError:
             logger.warning(f"{ModuleColors.LLM} | {json_log_maker(content=content)} | Bad JSON")
             return LLMResponse(
-                response_message=None, qualified=False, priority=MessagePriority.NONE
+                response_message=None, 
+                qualified=False, 
+                priority=MessagePriority.NONE
             )
         return self._llm_response_from_json(response_json)
 
@@ -149,7 +150,13 @@ class LLMClient:
         is_source_edit: bool = False,
         edited_message_previous_text: str | None = None,
     ) -> LLMResponse:
-        user_content = build_user_message(event_message, parent_message)
+        if parent_message:
+            user_content = (
+                f"parent message for context: {parent_message}\n"
+                f"new update: {event_message}"
+            )
+        else:
+            user_content = event_message
 
         if incident is None:
             system_prompt = build_first_prompt(recent_closure_appendix)

@@ -603,7 +603,7 @@ class LionsRoar:
                     channel_id, message_id, edit_text
                 ):
                     logger.debug(
-                        f"{ModuleColors.MESSAGE_PROCESSING} | Edit deduped (unchanged text) | channel_id={channel_id} | message_id={message_id}"
+                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(type=event_type, channel_id=channel_id, message_id=message_id)} | Edit deduped (unchanged text)"
                     )
                     return
                 self._edit_text_cache.record(channel_id, message_id, edit_text)
@@ -1170,24 +1170,25 @@ class LionsRoar:
         self._admin_user_ids = (
             frozenset(int(x) for x in au) if au else frozenset({me.id})
         )
-        logger.info(
-            f"{IncidentHandlerLog.MANUAL} | {json_log_maker(chat_id=self._admin_command_chat_id, allowed_user_ids=sorted(self._admin_user_ids), enable_bot_dm_commands=cfg.get('enable_bot_dm_commands', True))}"
-        )
         await self._resolve_monitored_chats()
         await self.init_watermarks()
         self._register_handlers()
         logger.info(f"{ModuleColors.MAIN} | Telethon event handlers registered")
 
         # Bot API long poll in parallel — does not block Telethon; uses same manual_close + send_plain_text.
-        asyncio.create_task(
-            run_bot_dm_updates_loop(
-                bot_token=self.bot_token,
-                admin_user_ids=self._admin_user_ids,
-                enabled=cfg.get("enable_bot_dm_commands", True),
-                manual_close=self._manual_close_incident,
-                send_plain_text=self._telegram_sender.send_plain_text,
+        if not self.is_debug:
+            logger.info(
+                f"{IncidentHandlerLog.MANUAL} | {json_log_maker(chat_id=self._admin_command_chat_id, allowed_user_ids=sorted(self._admin_user_ids), enable_bot_dm_commands=cfg.get('enable_bot_dm_commands', True))}"
             )
-        )
+            asyncio.create_task(
+                run_bot_dm_updates_loop(
+                    bot_token=self.bot_token,
+                    admin_user_ids=self._admin_user_ids,
+                    enabled=cfg.get("enable_bot_dm_commands", True),
+                    manual_close=self._manual_close_incident,
+                    send_plain_text=self._telegram_sender.send_plain_text,
+                )
+            )
         await self._client.run_until_disconnected()
 
 
