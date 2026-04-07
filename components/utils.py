@@ -82,10 +82,10 @@ def format_timelined_alert_body(
     ts_last = segments[-1][0]
     head, tail = split_last_sentence(base)
     if head and tail:
-        return f"{head}\n\n{format_time_il_hm(ts_last)} {tail}"
+        return f"{head}\n\n{format_time_il_hm(ts_last)} - {tail}"
     last_src = (segments[-1][1] or "").strip()
     if last_src:
-        return f"{base}\n\n{format_time_il_hm(ts_last)} {last_src}"
+        return f"{base}\n\n{format_time_il_hm(ts_last)} - {last_src}"
     return f"{base}\n\n{format_time_il_hm(ts_last)}"
 
 
