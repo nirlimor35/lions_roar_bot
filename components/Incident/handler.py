@@ -323,17 +323,27 @@ class IncidentHandler:
             cancel_for_source_deleted = (
                 pending_deferred_reason == CloseReason.SOURCE_DELETED
             )
-            if escalated_to_high or cancel_for_source_deleted:
+            cancel_for_active_signal = (
+                llm_response is not None
+                and not llm_response.ended
+                and llm_response.qualified
+            )
+            if (
+                escalated_to_high
+                or cancel_for_source_deleted
+                or cancel_for_active_signal
+            ):
                 canceled_deferred_close = self._cancel_deferred_close(
                     opened_incident.incident_id
                 )
                 self._cancel_informational_grace()
                 close_timer_locked = False
-                reason_log = (
-                    "priority escalated to high"
-                    if escalated_to_high
-                    else "source-deleted grace cancelled"
-                )
+                if escalated_to_high:
+                    reason_log = "priority escalated to high"
+                elif cancel_for_source_deleted:
+                    reason_log = "source-deleted grace cancelled"
+                else:
+                    reason_log = "active merge signal cancelled pending close"
                 logger.info(
                     f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, ended=llm_response.ended)} | Close timer overridden — {reason_log}",
                 )
@@ -592,17 +602,27 @@ class IncidentHandler:
                 pending_deferred_reason == CloseReason.SOURCE_DELETED
                 and self._tracker.source_message_count > 0
             )
-            if escalated_to_high or cancel_for_source_deleted:
+            cancel_for_active_signal = (
+                llm_response is not None
+                and not llm_response.ended
+                and llm_response.qualified
+            )
+            if (
+                escalated_to_high
+                or cancel_for_source_deleted
+                or cancel_for_active_signal
+            ):
                 canceled_deferred_close = self._cancel_deferred_close(
                     opened_incident.incident_id
                 )
                 self._cancel_informational_grace()
                 close_timer_locked = False
-                reason_log = (
-                    "priority escalated to high"
-                    if escalated_to_high
-                    else "source-deleted grace cancelled"
-                )
+                if escalated_to_high:
+                    reason_log = "priority escalated to high"
+                elif cancel_for_source_deleted:
+                    reason_log = "source-deleted grace cancelled"
+                else:
+                    reason_log = "active reprocess signal cancelled pending close"
                 logger.info(
                     f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Close timer overridden — {reason_log}",
                 )

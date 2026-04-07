@@ -306,6 +306,20 @@ async def fetch_replied_message_text(
 
     return sanitized_parent_text
 
+
+def message_contains_video(message) -> bool:
+    if getattr(message, "video", None) is not None:
+        return True
+    if getattr(message, "video_note", None) is not None:
+        return True
+    doc = getattr(message, "document", None)
+    if doc is not None:
+        mime = getattr(doc, "mime_type", None) or ""
+        if mime.startswith("video/"):
+            return True
+    return False
+
+
 def json_log_maker(**kwargs: dict) -> dict:
     log = {}
     for key, value in kwargs.items():

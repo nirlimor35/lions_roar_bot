@@ -163,7 +163,7 @@ class LLMClient:
             response = await self._ask_llm(
                 user_content, system_prompt, MessageType.NEW_MESSAGE
             )
-            logger.info(
+            logger.debug(
                 f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, qualified=response.qualified, priority=response.priority)} | New-incident prompt"
             )
             return response
@@ -176,7 +176,7 @@ class LLMClient:
             edited_message_previous_text=edited_message_previous_text,
         )
         response = await self._ask_llm(user_content, system_prompt, message_type)
-        logger.info(
+        logger.debug(
             f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, incident_id=incident.incident_id, related=response.related, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Merge prompt"
         )
         return response
@@ -198,7 +198,7 @@ class LLMClient:
         response = await self._ask_llm(
             user_content, system_prompt, MessageType.DELETED_MESSAGE
         )
-        logger.info(
+        logger.debug(
             f"{ModuleColors.LLM} | {json_log_maker(incident_id=incident.incident_id, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Reprocess-after-deletion prompt"
         )
         return response

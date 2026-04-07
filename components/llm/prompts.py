@@ -21,6 +21,8 @@ DISQUALIFIERS = (
     '- Threat explicitly limited to areas outside the priority areas (e.g. נגב, צפון, גולן, גליל, אילת, ירושלים, השפלה). Refinements toward המרכז, מיקוד למרכז, למרכז, or מחוז המרכז are NOT “outside” — that is the same region as גבעתיים/גוש דן.\n'
     '- City hard override: the update names specific cities and NONE of them are priority area cities — set qualified=false, priority=none regardless of urgency wording.\n'
     '- When the message is referring to a government statement like the Prime Minister or Defense Minister.\n'
+    '- Enemy/adversary battle claim: a statement by Iran (משמרות המהפכה, IRGC), Hamas, Hezbollah, or any hostile entity claiming they **carried out** an attack — e.g. "תקפנו", "שיגרנו", "פגענו". These are past-tense enemy announcements reported as news, not live civil-defense alerts — qualified=false regardless of whether the weapon type is missiles or rockets.\n'
+    '- Security/intelligence assessment or forecast: statements where the defense establishment, security sources, or analysts **estimate or predict** future fire or escalation — e.g. "מעריכים כי", "הערכות", "צופים ש", "מקורות ביטחוניים". A prediction that fire *will* increase is NOT an active incoming threat. No Pikud Haoref shelter instruction means qualified=false.\n'
 )
 FAITHFULNESS = (
     "Faithfulness — CRITICAL:\n"
@@ -31,6 +33,8 @@ FAITHFULNESS = (
 )
 FIRST_PROMPT = (
     f"You classify messages from Israeli Telegram channels about home-front security events.\n"
+    "Do not include safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן'.\n"
+    "Do not include the fact that the details are being verified or that the details are being investigated. (e.g., הפרטים בבדיקה)\n"
     "Reply with a single JSON object only:\n"
     '{{"response_message": string, "qualified": boolean, "priority": "none"|"informational"|"warning"|"high"}}\n'
     "\n"
@@ -54,6 +58,7 @@ FIRST_PROMPT = (
 )
 ONGOING_PROMPT = (
     f"You manage an open Israeli home-front incident alert in the priority areas.\n"
+    "Do not include safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן'.\n"
     f"Priority areas: {PRIORITY_AREAS}.\n"
     "\n"
     "Do not treat trailing channel promos as downgrading priority if the operational line is unchanged\n"

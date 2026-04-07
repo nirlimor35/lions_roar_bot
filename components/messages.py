@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import random
 from datetime import datetime, timedelta
 
 import httpx
@@ -42,12 +43,20 @@ class TelegramMessageSender:
         pin_on_edit: bool = True,
         bump_on_edit: bool = True,
         delete_bump_message: bool = True,
+        api_max_attempts: int = 6,
+        rate_limit_fallback_base_seconds: float = 2.0,
+        rate_limit_fallback_max_seconds: float = 90.0,
     ) -> None:
         self._chat_id = chat_id
         self._base_url = f"https://api.telegram.org/bot{bot_token}"
         self._pin_on_edit = pin_on_edit
         self._bump_on_edit = bump_on_edit
         self._delete_bump_message = delete_bump_message
+        self._api_max_attempts = max(1, int(api_max_attempts))
+        self._rate_limit_fallback_base = max(0.1, float(rate_limit_fallback_base_seconds))
+        self._rate_limit_fallback_max = max(
+            self._rate_limit_fallback_base, float(rate_limit_fallback_max_seconds)
+        )
 
     @staticmethod
     def _elapsed_minutes(start: datetime, end: datetime) -> int:
@@ -158,58 +167,76 @@ class TelegramMessageSender:
             description = resp.text.lower()
         return "message is not modified" in description
 
+    @staticmethod
+    def _retry_after_seconds_from_429(resp: httpx.Response) -> float | None:
+        if resp.status_code != 429:
+            return None
+        ra_header = resp.headers.get("Retry-After")
+        if ra_header:
+            try:
+                return max(0.0, float(ra_header))
+            except ValueError:
+                pass
+        try:
+            data = resp.json()
+            params = data.get("parameters")
+            if isinstance(params, dict) and "retry_after" in params:
+                return max(0.0, float(params["retry_after"]))
+        except Exception:
+            pass
+        return None
+
+    def _sleep_seconds_after_429(self, resp: httpx.Response, attempt: int) -> float:
+        parsed = self._retry_after_seconds_from_429(resp)
+        if parsed is not None:
+            return max(0.1, parsed)
+        exp = self._rate_limit_fallback_base * (2 ** (attempt - 1))
+        capped = min(exp, self._rate_limit_fallback_max)
+        return max(0.1, capped + random.uniform(0.0, 0.35))
+
     async def _request_with_retry(
         self,
         endpoint: str,
         payload: dict,
         *,
-        max_attempts: int = 3,
+        max_attempts: int | None = None,
     ) -> httpx.Response:
-        """
-        POST to Telegram Bot API with retries on 5xx, 429, and network errors.
-        Non-retryable 4xx (except 429) are returned immediately.
-        """
-        for attempt in range(1, max_attempts + 1):
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+        attempts = self._api_max_attempts if max_attempts is None else max(1, int(max_attempts))
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for attempt in range(1, attempts + 1):
+                try:
                     resp = await client.post(
                         f"{self._base_url}/{endpoint}",
                         json=payload,
                     )
-                if resp.is_success:
-                    return resp
-                if resp.status_code == 429:
-                    wait_s = float(attempt)
-                    ra = resp.headers.get("Retry-After")
-                    if ra:
-                        try:
-                            wait_s = float(ra)
-                        except ValueError:
-                            pass
+                    if resp.is_success:
+                        return resp
+                    if resp.status_code == 429:
+                        wait_s = self._sleep_seconds_after_429(resp, attempt)
+                        logger.warning(
+                            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=attempts, wait_s=round(wait_s, 2))} | Rate limited (429)"
+                        )
+                        if attempt < attempts:
+                            await asyncio.sleep(wait_s)
+                            continue
+                        return resp
+                    if 400 <= resp.status_code < 500:
+                        return resp
                     logger.warning(
-                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Rate limited (429)"
+                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=attempts)} | Failed: {resp.status_code} {resp.text[:300]}"
                     )
-                    if attempt < max_attempts:
-                        await asyncio.sleep(wait_s)
+                    if attempt < attempts:
+                        await asyncio.sleep(min(8.0, float(attempt) * 2.0))
                         continue
                     return resp
-                if 400 <= resp.status_code < 500:
-                    return resp
-                logger.warning(
-                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Failed: {resp.status_code} {resp.text[:300]}"
-                )
-                if attempt < max_attempts:
-                    await asyncio.sleep(float(attempt))
-                    continue
-                return resp
-            except httpx.HTTPError as exc:
-                logger.warning(
-                    f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=max_attempts)} | Network error: {exc}"
-                )
-                if attempt < max_attempts:
-                    await asyncio.sleep(float(attempt))
-                    continue
-                raise
+                except httpx.HTTPError as exc:
+                    logger.warning(
+                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint=endpoint, attempt=attempt, max_attempts=attempts)} | Network error: {exc}"
+                    )
+                    if attempt < attempts:
+                        await asyncio.sleep(min(8.0, float(attempt) * 2.0))
+                        continue
+                    raise
 
     async def _pin_chat_message(self, message_id: int) -> None:
         """Pin the alert so it stays in the chat header (requires pin admin rights)."""
@@ -224,6 +251,20 @@ class TelegramMessageSender:
         if not resp.is_success:
             logger.warning(
                 f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='pinChatMessage', status_code=resp.status_code, text=resp.text)} | Pin chat message failed (bot may lack pin admin or chat type unsupported)"
+            )
+
+    async def _unpin_chat_message(self, message_id: int) -> None:
+        """Remove the pin once the incident is fully closed."""
+        resp = await self._request_with_retry(
+            "unpinChatMessage",
+            {
+                "chat_id": self._chat_id,
+                "message_id": message_id,
+            },
+        )
+        if not resp.is_success:
+            logger.warning(
+                f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(endpoint='unpinChatMessage', status_code=resp.status_code, text=resp.text)} | Unpin chat message failed"
             )
 
     async def _bump_edit_notification(self, reply_to_message_id: int) -> None:
@@ -381,8 +422,11 @@ class TelegramMessageSender:
         logger.info(
             f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(destination_chat_id=self._chat_id, message_id=message_id)} | EditMessageText (alert) ok"
         )
+        is_closed = ended_at is not None
         if self._pin_on_edit:
             await self._pin_chat_message(message_id)
         if self._bump_on_edit:
             await self._bump_edit_notification(message_id)
+        if is_closed:
+            await self._unpin_chat_message(message_id)
         return True

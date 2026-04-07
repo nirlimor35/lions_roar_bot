@@ -2,7 +2,6 @@ import asyncio
 import copy
 import os
 import sys
-from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 import yaml
@@ -35,6 +34,7 @@ from components.utils import (
     ensure_utc,
     get_reply_message_id,
     json_log_maker,
+    message_contains_video,
     message_timestamp,
     monitored_chats_list,
     resolve_monitored_peer_ids,
@@ -71,6 +71,7 @@ class LionsRoar:
     bot_token = config.get("bot_token")
 
     def __init__(self):
+        cfg = type(self).config
         # Dedupe by channel message id; tracker lock for short atomic mutations; semaphore
         # serializes one channel pipeline at a time so LLM can run without holding the tracker lock.
         self._watermarks = ChannelWatermarks()
@@ -83,9 +84,18 @@ class LionsRoar:
             openai_api_key=self.openai_api_key,
             model=self._resolve_model_for_current_israel_time,
         )
+        tb_cfg = cfg.get("telegram_bot_api")
+        tb_section = tb_cfg if isinstance(tb_cfg, dict) else {}
         self._telegram_sender = TelegramMessageSender(
             bot_token=self.bot_token,
             chat_id=self.destination_chat_id,
+            api_max_attempts=max(1, int(tb_section.get("max_attempts", 6))),
+            rate_limit_fallback_base_seconds=float(
+                tb_section.get("rate_limit_base_seconds", 2.0)
+            ),
+            rate_limit_fallback_max_seconds=float(
+                tb_section.get("rate_limit_max_seconds", 90.0)
+            ),
         )
         self._incident_handler = IncidentHandler(
             client=self._client,
@@ -110,7 +120,6 @@ class LionsRoar:
         self._admin_command_chat_id: int | None = None
         self._admin_user_ids: frozenset[int] = frozenset()
         self._monitored_peer_ids: frozenset[int] | None = None
-        cfg = type(self).config
         # Used by _process_message_with_retries: cap attempts and grow delay as 1s, 2s, 4s, ...
         self._message_process_max_attempts = max(
             1, int(cfg.get("message_processing_max_attempts", 3))
@@ -329,23 +338,6 @@ class LionsRoar:
                 self._deferred_close_incident_id = None
                 self._deferred_close_reason = None
                 self._deferred_close_fire_at = None
-
-    @asynccontextmanager
-    async def _watermark_new_message_after_success(
-        self,
-        channel_id: int,
-        message_id: int,
-        is_new_message: bool,
-    ):
-        """Advance new-message watermark only if this scope completes without exception."""
-        try:
-            yield
-        except BaseException:
-            raise
-        else:
-            if is_new_message:
-                # Normal exit (including early returns inside the block): message consumed.
-                self._watermarks.update(channel_id, message_id)
 
     def _cancel_merge_deadline_only(self) -> None:
         task = self._merge_deadline_task
@@ -594,10 +586,11 @@ class LionsRoar:
         message = event.message
         channel_id = event.chat_id
         message_id = message.id
+        is_new_message = event_type == MessageType.NEW_MESSAGE
 
         if channel_id is None:
             return
-        if event_type == MessageType.NEW_MESSAGE:
+        if is_new_message:
             if not skip_new_message_watermark_check and self._watermarks.is_old(
                 channel_id, message_id
             ):
@@ -605,78 +598,83 @@ class LionsRoar:
                     f"{ModuleColors.MESSAGE_PROCESSING} | Duplicate new_message skipped"
                 )
                 return
-            self._edit_text_cache.record(channel_id, message_id, message.text or "")
-
-        else:
-            edit_text = message.text or ""
-            if not skip_edit_text_cache_gate:
-                if self._edit_text_cache.is_duplicate(
-                    channel_id, message_id, edit_text
-                ):
-                    logger.debug(
-                        f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(type=event_type, channel_id=channel_id, message_id=message_id)} | Edit deduped (unchanged text)"
-                    )
-                    return
-                self._edit_text_cache.record(channel_id, message_id, edit_text)
 
         channel_name = await resolve_source_chat(event)
+        if message_contains_video(message):
+            logger.debug(
+                f"{ModuleColors.MESSAGE_PROCESSING} | Skipped (message contains video)"
+            )
+            return
+        raw_text = message.text or ""
+        parent_message_id = get_reply_message_id(message)
+        text = sanitize_alert_body_text(message.text)
+        if not text:
+            return
 
-        # For new messages, bump watermark only after this scope exits without exception (enables retries on failure).
-        async with self._watermark_new_message_after_success(
-            channel_id, message_id, event_type == MessageType.NEW_MESSAGE
-        ):
-            raw_text = message.text or ""
-            parent_message_id = get_reply_message_id(message)
-            text = sanitize_alert_body_text(message.text)
-            if not text:
-                return
+        # In-channel /close is handled only on the dedicated admin path below, not here.
+        if text and is_manual_close_command(text):
+            return
+        if is_new_message:
+            self._edit_text_cache.record(channel_id, message_id, raw_text)
 
-            # In-channel /close is handled only on the dedicated admin path below, not here.
-            if text and is_manual_close_command(text):
-                return
+        prep: ExistingIncidentPrep | None = None
+        recent_appendix: str | None = None
+        message_ts = message_timestamp(message)
 
-            prep: ExistingIncidentPrep | None = None
-            recent_appendix: str | None = None
-            message_ts = message_timestamp(message)
-
-            async with self._open_incident_lock:
-                if event_type == MessageType.EDITED_MESSAGE:
-                    if self._tracker.get_open_incident() is None:
-                        latest_seen = self._watermarks.latest(channel_id)
-                        if message_id < latest_seen:
-                            logger.debug(
-                                f"{ModuleColors.MESSAGE_PROCESSING} | Ignoring edited_message opener candidate as old"
-                            )
-                            return
-                opened_incident: ActiveIncident | None = (
-                    self._tracker.get_open_incident()
-                )
-                logger.info(
-                    f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
-                )
-                if opened_incident is not None:
-                    prep = self._incident_handler.build_existing_incident_prep(
-                        opened_incident=opened_incident,
-                        channel_id=channel_id,
-                        channel_name=channel_name,
-                        raw_text=raw_text,
-                        text=text,
-                        event_type=event_type,
-                        message_ts=message_ts,
-                        message_id=message_id,
-                        parent_message_id=parent_message_id,
-                        message=message,
+        async with self._open_incident_lock:
+            opened_incident: ActiveIncident | None = self._tracker.get_open_incident()
+            if event_type == MessageType.EDITED_MESSAGE:
+                latest_seen = self._watermarks.latest(channel_id)
+                if opened_incident is None and message_id < latest_seen:
+                    logger.debug(
+                        f"{ModuleColors.MESSAGE_PROCESSING} | Ignoring edited_message opener candidate as old"
                     )
-                else:
-                    recent_appendix = self._tracker.recent_closure_prompt_appendix(
-                        message_ts=message_ts,
-                        source_channel=channel_name,
+                    return
+                if not skip_edit_text_cache_gate:
+                    edit_text = raw_text
+                    is_duplicate_edit = self._edit_text_cache.is_duplicate(
+                        channel_id, message_id, edit_text
                     )
+                    bypass_duplicate_dedup = (
+                        is_duplicate_edit
+                        and opened_incident is None
+                        and message_id > latest_seen
+                    )
+                    if is_duplicate_edit and not bypass_duplicate_dedup:
+                        logger.debug(
+                            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(type=event_type, channel_id=channel_id, message_id=message_id)} | Edit deduped (unchanged text)"
+                        )
+                        return
+                    if bypass_duplicate_dedup:
+                        logger.info(
+                            f"{ModuleColors.MESSAGE_PROCESSING} | {json_log_maker(type=event_type, channel_id=channel_id, message_id=message_id, latest_seen=latest_seen)} | Edit dedup bypassed (awaiting finalized new_message consumption)"
+                        )
+                    self._edit_text_cache.record(channel_id, message_id, edit_text)
+            logger.info(
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
+            )
+            if opened_incident is not None:
+                prep = self._incident_handler.build_existing_incident_prep(
+                    opened_incident=opened_incident,
+                    channel_id=channel_id,
+                    channel_name=channel_name,
+                    raw_text=raw_text,
+                    text=text,
+                    event_type=event_type,
+                    message_ts=message_ts,
+                    message_id=message_id,
+                    parent_message_id=parent_message_id,
+                    message=message,
+                )
+            else:
+                recent_appendix = self._tracker.recent_closure_prompt_appendix(
+                    message_ts=message_ts,
+                    source_channel=channel_name,
+                )
 
-            if prep is not None:
-                await self._run_merge_pipeline(prep)
-                return
-
+        if prep is not None:
+            await self._run_merge_pipeline(prep)
+        else:
             await self._run_new_incident_pipeline(
                 channel_id=channel_id,
                 channel_name=channel_name,
@@ -689,16 +687,43 @@ class LionsRoar:
                 message=message,
                 recent_appendix=recent_appendix,
             )
+        if is_new_message:
+            self._watermarks.update(channel_id, message_id)
 
     async def _run_merge_pipeline(self, prep: ExistingIncidentPrep) -> None:
         llm_merge = await self._incident_handler.run_existing_incident_llm(prep)
         pending_close: PendingClosedAlertEdit | None = None
+        recovered_merge_deadline: datetime | None = None
         async with self._open_incident_lock:
             pending_close = (
                 await self._incident_handler.apply_existing_incident_locked_phase(
                     prep, llm_merge
                 )
             )
+            if (
+                pending_close is None
+                and self._tracker.get_open_incident() is None
+                and self._can_reopen_from_discarded_merge(prep, llm_merge)
+            ):
+                logger.warning(
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, channel=prep.channel_name, message_id=prep.message_id)} | Recovering from discarded merge by opening a new incident from in-flight LLM result",
+                )
+                recovered_merge_deadline = (
+                    await self._incident_handler.commit_new_incident_after_llm(
+                        channel_id=prep.channel_id,
+                        channel_name=prep.channel_name,
+                        raw_text=prep.raw_text,
+                        text=prep.text,
+                        event_type=prep.event_type,
+                        message_ts=prep.message_ts,
+                        message_id=prep.message_id,
+                        parent_message_id=prep.parent_message_id,
+                        response=llm_merge,
+                    )
+                )
+        if recovered_merge_deadline is not None:
+            self._schedule_merge_deadline(recovered_merge_deadline)
+            return
         if pending_close is not None:
             closed_subject = (
                 await self._incident_handler.subject_line_for_closed_incident(
@@ -729,6 +754,23 @@ class LionsRoar:
                 logger.info(
                     f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, message_id=pending_close.incident_message_id)} | Destination alert edited (closed)",
                 )
+
+    @staticmethod
+    def _can_reopen_from_discarded_merge(
+        prep: ExistingIncidentPrep,
+        llm_merge,
+    ) -> bool:
+        if llm_merge is None:
+            return False
+        if llm_merge.ended:
+            return False
+        if not llm_merge.qualified:
+            return False
+        if llm_merge.priority == MessagePriority.NONE:
+            return False
+        if llm_merge.related is False:
+            return False
+        return True
 
     async def _run_new_incident_pipeline(
         self,
@@ -814,8 +856,9 @@ class LionsRoar:
                     )
                 )
                 pre_deleted_grace_id: str | None = None
-                if merge_deadline_at is not None and self._tracker.check_pending_deletion(
-                    channel_id, message_id
+                if (
+                    merge_deadline_at is not None
+                    and self._tracker.check_pending_deletion(channel_id, message_id)
                 ):
                     logger.info(
                         f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(channel=channel_name, message_id=message_id)} | Source pre-deleted during qualification — triggering deletion",
@@ -825,7 +868,10 @@ class LionsRoar:
                         deleted_message_ids=[message_id],
                         message_ts=utc_now(),
                     )
-                    if pre_deletion is not None and pre_deletion.grace_close is not None:
+                    if (
+                        pre_deletion is not None
+                        and pre_deletion.grace_close is not None
+                    ):
                         pre_deleted_grace_id = pre_deletion.grace_close.incident_id
         if merge_deadline_at is not None:
             self._schedule_merge_deadline(merge_deadline_at)
