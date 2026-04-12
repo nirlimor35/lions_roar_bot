@@ -28,6 +28,7 @@ from components.utils import (
     clamp_word_count,
     ensure_utc,
     fetch_replied_message_text,
+    format_time_il_hm,
     json_log_maker,
     sanitize_alert_body_text,
     utc_now,
@@ -64,7 +65,6 @@ class PendingClosedAlertEdit:
     incident_start: datetime
     closed_at: datetime
     log_file_suffix: str
-    alert_body_segments: list[tuple[datetime, str]]
 
 
 @dataclass(frozen=True)
@@ -203,6 +203,7 @@ class IncidentHandler:
             source_messages_context=prep.source_messages_context,
             is_source_edit=prep.is_source_edit,
             edited_message_previous_text=prep.previous_source_text,
+            message_ts_il=None if prep.is_source_edit else format_time_il_hm(prep.message_ts),
         )
 
     async def apply_existing_incident_locked_phase(
@@ -296,15 +297,8 @@ class IncidentHandler:
         self._tracker.update_after_merge(
             stripped if stripped else None,
             channel_name if stripped else None,
-            alert_priority=llm_response.priority,
+            alert_priority=llm_response.priority if llm_response.qualified or llm_response.ended else None,
         )
-        merged = self._tracker.get_open_incident()
-        if (
-            merged is not None
-            and merged.unified_text != pre_merge_unified
-            and not is_source_edit
-        ):
-            self._tracker.append_alert_source_line(message_ts, text)
         if stripped:
             logger.info(
                 f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Tracker merged text",
@@ -392,7 +386,6 @@ class IncidentHandler:
                         subject=open_incident.subject,
                         pending_close_reason=close_reason,
                         pending_close_seconds=defer_seconds,
-                        alert_body_segments=list(open_incident.alert_body_segments),
                     )
                 logger.info(
                     f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled",
@@ -430,7 +423,6 @@ class IncidentHandler:
                     incident_start=snapshot.start_time,
                     closed_at=closed_at_outer,
                     log_file_suffix=snapshot.log_file_suffix,
-                    alert_body_segments=list(snapshot.alert_body_segments),
                 )
             return None
 
@@ -450,7 +442,6 @@ class IncidentHandler:
                 start_at=open_incident.start_time,
                 alert_priority=open_incident.alert_priority,
                 subject=open_incident.subject,
-                alert_body_segments=list(open_incident.alert_body_segments),
             )
             self._tracker.set_incident_message_id(sent_message_id)
             logger.info(
@@ -478,7 +469,6 @@ class IncidentHandler:
             subject=open_incident.subject,
             pending_close_reason=pending_close[0] if pending_close else None,
             pending_close_seconds=pending_close[1] if pending_close else None,
-            alert_body_segments=list(open_incident.alert_body_segments),
         )
         logger.info(
             f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (merged)",
@@ -585,9 +575,6 @@ class IncidentHandler:
                 )
 
         reprocess_ts = utc_now()
-        rp_open = self._tracker.get_open_incident()
-        if rp_open is not None and rp_open.unified_text != pre_merge_unified:
-            self._tracker.reset_alert_body_timeline(reprocess_ts, rp_open.unified_text)
         canceled_deferred_close = False
         close_timer_locked = self._has_pending_close_timer()
         pending_deferred = self._get_pending_close_info()
@@ -673,7 +660,6 @@ class IncidentHandler:
                         subject=open_incident.subject,
                         pending_close_reason=close_reason,
                         pending_close_seconds=defer_seconds,
-                        alert_body_segments=list(open_incident.alert_body_segments),
                     )
                 logger.info(
                     f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled (reprocess)",
@@ -711,7 +697,6 @@ class IncidentHandler:
                     incident_start=snapshot.start_time,
                     closed_at=closed_at_outer,
                     log_file_suffix=snapshot.log_file_suffix,
-                    alert_body_segments=list(snapshot.alert_body_segments),
                 )
             return None
 
@@ -731,7 +716,6 @@ class IncidentHandler:
                 start_at=open_incident.start_time,
                 alert_priority=open_incident.alert_priority,
                 subject=open_incident.subject,
-                alert_body_segments=list(open_incident.alert_body_segments),
             )
             self._tracker.set_incident_message_id(sent_message_id)
             logger.info(
@@ -759,7 +743,6 @@ class IncidentHandler:
             subject=open_incident.subject,
             pending_close_reason=pending_close[0] if pending_close else None,
             pending_close_seconds=pending_close[1] if pending_close else None,
-            alert_body_segments=list(open_incident.alert_body_segments),
         )
         logger.info(
             f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (reprocess)",
@@ -844,14 +827,12 @@ class IncidentHandler:
             )
             return None
 
-        first_seg = sanitize_alert_body_text(text) or initial_text
         incident_message_id = await self._telegram_sender.send_alert(
             channels=[channel_name],
             unified_text=initial_text,
             start_at=message_ts,
             alert_priority=response.priority,
             subject=None,
-            alert_body_segments=[(ensure_utc(message_ts), first_seg)],
         )
         logger.info(
             f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.OPENED} | {json_log_maker(channel=channel_name, destination_message_id=incident_message_id, priority=response.priority)} | Alert sent to destination",

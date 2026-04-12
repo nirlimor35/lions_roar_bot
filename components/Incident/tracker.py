@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from components.constants import (
@@ -13,7 +13,7 @@ from components.constants import (
     CloseReason,
     MessagePriority,
 )
-from components.utils import ensure_utc, sanitize_alert_body_text, utc_now
+from components.utils import ensure_utc, utc_now
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,6 @@ class ActiveIncident:
     log_file_suffix: str
     subject: str | None = None
     source_messages: dict[tuple[int, int], "IncidentSourceMessage"] | None = None
-    alert_body_segments: list[tuple[datetime, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -302,7 +301,6 @@ class IncidentTracker:
             log_file_suffix=incident.log_file_suffix,
             subject=incident.subject,
             source_messages=dict(incident.source_messages or {}),
-            alert_body_segments=list(incident.alert_body_segments),
         )
         self._current_incident = None
         return snapshot
@@ -329,11 +327,7 @@ class IncidentTracker:
         subject: str | None = None,
     ) -> ActiveIncident:
         start_utc = ensure_utc(start_time)
-        # TTL is a plain duration; anchor and expiry share the same UTC instant semantics.
         expires_at = ensure_utc(start_utc + ACTIVE_INCIDENT_TTL)
-        seg0 = sanitize_alert_body_text(source_sanitized_text or "")
-        if not seg0:
-            seg0 = sanitize_alert_body_text(unified_text or "")
         incident = ActiveIncident(
             incident_id=str(uuid.uuid4()),
             incident_message_id=incident_message_id,
@@ -346,7 +340,6 @@ class IncidentTracker:
             log_file_suffix=log_file_suffix,
             subject=subject,
             source_messages={},
-            alert_body_segments=[(start_utc, seg0)] if seg0 else [],
         )
         self._current_incident = incident
         self.upsert_source_message(
@@ -403,30 +396,9 @@ class IncidentTracker:
             log_file_suffix=incident.log_file_suffix,
             subject=incident.subject,
             source_messages=dict(incident.source_messages or {}),
-            alert_body_segments=list(incident.alert_body_segments),
         )
         self._current_incident = None
         return snapshot
-
-    def append_alert_source_line(
-        self, message_ts: datetime, sanitized_source_text: str
-    ) -> None:
-        incident = self._current_incident
-        if incident is None or incident.end_time is not None:
-            return
-        line = sanitize_alert_body_text(sanitized_source_text or "")
-        if not line:
-            return
-        incident.alert_body_segments.append((ensure_utc(message_ts), line))
-
-    def reset_alert_body_timeline(self, at: datetime, unified: str) -> None:
-        incident = self._current_incident
-        if incident is None or incident.end_time is not None:
-            return
-        u = sanitize_alert_body_text(unified or "")
-        if not u:
-            return
-        incident.alert_body_segments = [(ensure_utc(at), u)]
 
     @staticmethod
     def _priority_logic(

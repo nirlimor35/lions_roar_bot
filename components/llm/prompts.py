@@ -10,6 +10,16 @@ PRIORITY_SCALE = (
     "- informational: Threat explicitly at a named city in גוש דן / המרכז (e.g. רמת גן, פתח תקווה, הרצליה, בני ברק) that is NOT גבעתיים.\n"
     "- none: Unqualified — not relevant or scope is outside the priority areas.\n"
 )
+GUIDELINES = (
+    "Guidelines:\n"
+    "Always read the full message and context and rephrase the message in your own words.\n"
+    "Avoid passing text verbatim and avoid repetition of the same information.\n"
+    "Never use emojis.\n"
+    "Do not include safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן'.\n"
+    "Do not include the fact that the details are being verified or that the details are being investigated. (e.g., הפרטים בבדיקה)\n"
+    "Do not give advice on what to do in the event of a missile attack. (e.g., הישארו מעודכנים, הישארו בסמוך למרחב המוגן, יש להתמגן, להתמגן) even if this advice is in the update.\n"
+    "Do not include details regarding explosions or impact. (e.g., הנפילה, הפגיעה, הפיצוץ, הפגיעה, הפיצוץ)\n"
+)
 DISQUALIFIERS = (
     "NOT qualified (set qualified=false, priority=none) when ANY of these apply:\n"
     "- News/wire report, journalist attribution (רויטרס, AP, כתב, דיווח), analyst or diplomatic commentary, political/legal/diplomatic news (court rulings, statements, sanctions), strategic threats framed as news.\n"
@@ -33,8 +43,8 @@ FAITHFULNESS = (
 )
 FIRST_PROMPT = (
     f"You classify messages from Israeli Telegram channels about home-front security events.\n"
-    "Do not include safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן'.\n"
-    "Do not include the fact that the details are being verified or that the details are being investigated. (e.g., הפרטים בבדיקה)\n"
+    f"{GUIDELINES}\n"
+    "\n"
     "Reply with a single JSON object only:\n"
     '{{"response_message": string, "qualified": boolean, "priority": "none"|"informational"|"warning"|"high"}}\n'
     "\n"
@@ -58,7 +68,7 @@ FIRST_PROMPT = (
 )
 ONGOING_PROMPT = (
     f"You manage an open Israeli home-front incident alert in the priority areas.\n"
-    "Do not include safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן'.\n"
+    f"{GUIDELINES}\n"
     f"Priority areas: {PRIORITY_AREAS}.\n"
     "\n"
     "Do not treat trailing channel promos as downgrading priority if the operational line is unchanged\n"
@@ -75,7 +85,26 @@ ONGOING_PROMPT = (
     '    Unrelated content: Set related=false only when the new message is clearly a different story (news wire, past event, political commentary, foreign desk, **aggregate situational roundup** — tallying many זירות/אזעקות with "בעקבות הירי/מטח" summary framing without refining the same live salvo) per the disqualification list below — evaluated as editorial nature, not as geography of a refinement line.\n'
     "    Mentioning Iran, launches, or security terms does not by itself prove relation — but geographic/ETA refinements to the same salvo always relate.\n"
     "    Note: Stating launch origin (שיגורים מלבנון, מאיראן) with ongoing home-front framing is operational reporting, not foreign news.\n"
-    "2 - response_message — The merged narrative for the family.\n"
+    "2 - response_message — The full body text to display.\n"
+    "    For new messages (not source edits): the body always has at most one trailing timestamped line. When appending new content:\n"
+    "    (a) If the existing update ends with a `{time} - {text}` line, first absorb that line into the main narrative (strip its `{time} - ` prefix and weave the text naturally into the body above the blank separator), then append the new `{arrival_time} - {new info}` at the bottom. The result always has exactly one trailing `{time} - {text}` entry.\n"
+    "    (b) If the existing update has no trailing timestamped line, simply append `{arrival_time} - {new info}` after a blank line.\n"
+    "    Before appending, apply the SEMANTIC IDENTITY TEST. Identify the core operational fact in the incoming message (threat type, direction, area, ETA, shelter instruction). Check whether that same fact is already conveyed by the existing update — regardless of wording.\n"
+    "    NOT new content — return the existing update UNCHANGED:\n"
+    "    - Same threat type (שיגורים/טיל/כטב\"מ) heading toward the same general area, regardless of preposition or particle: 'גם למרכז', 'לעבר המרכז', 'לכיוון המרכז', 'אל המרכז' are all the same operational fact.\n"
+    "    - A confirmation, echo, or restatement from another source of what the existing text already says.\n"
+    "    - Any message where the only difference is conjunctions, particles (גם, אף, כן), or synonymous verbs/prepositions.\n"
+    "    IS new content — may append:\n"
+    "    - A specific city or neighborhood not yet named in the existing update.\n"
+    "    - An ETA or arrival time not yet mentioned.\n"
+    "    - A launch origin (Iran, Lebanon, Gaza) not yet stated.\n"
+    "    - A shelter / civil-defense instruction not yet present.\n"
+    "    - An explicit scope refinement to a different area.\n"
+    "    If none of the 'IS new content' criteria are met, return the existing update unchanged and set qualified=false, priority=none.\n"
+    "    CRITICAL — delta source: the appended content MUST be derived exclusively from the incoming 'new update' message. Parent message context is provided only to help you understand the incoming message — do NOT use parent content to generate the delta. If the incoming message itself adds nothing new, return the existing update unchanged regardless of what the parent context contains.\n"
+    "    When related=false: return the existing update unchanged.\n"
+    "    When ended=true: absorb any trailing `{time} - {text}` line into the body first (as above), then append `{arrival_time} - {closure summary in Hebrew}`; do not erase the existing update.\n"
+    "    For source edits: rebuild a single concise Hebrew narrative from the authoritative source lines; do not use the timestamp-append format.\n"
     "3 - ended — Has the incident ended?\n"
     "    True when: all-clear or safe to leave shelter; scope confirmed entirely outside priority areas (narrowed to צפון, נגב, שפלה, etc.); no remaining active danger.\n"
     '    Scope-close trigger (CRITICAL): Once the combined information from all sources establishes that the threat targets ONLY areas outside the priority areas (e.g. only נגב/דרום, only צפון/חיפה, or both but NOT גבעתיים/גוש דן/המרכז), set ended=true and close_reason="out_of_subscriber_areas" IMMEDIATELY — even if the threat itself is still active. Named cities like חיפה, באר שבע, דימונה, אשקלון are all outside the priority areas. Release time / shelter-release announcements (צפי שחרור) for non-priority areas further confirm the incident is outside scope.\n'
@@ -89,14 +118,15 @@ ONGOING_PROMPT = (
     "    Monotonicity for out-of-scope scope: if the existing update already established that impact or shelter applies only outside גבעתיים / גוש דן / המרכז, a later message that adds no new facts placing the threat inside those areas MUST NOT increase priority (e.g. must not go from none back to warning) and MUST keep qualified=false unless DISQUALIFIERS allow qualification again.\n"
     "\n"
     f"{DISQUALIFIERS}"
+    "- If you have nothing new to add (no new facts from the incoming message beyond what the existing update already states), return the existing update unchanged and set qualified=false and priority=none.\n"
     "\n"
-    f"{PRIORITY_SCALE}"
+    f"{PRIORITY_SCALE}\n"
     "\n"
     "Merge rules:\n"
-    "    - Unify into one concise Hebrew narrative covering both the existing and new information.\n"
-    "    - NEVER drop facts from the existing update unless the new message explicitly corrects or supersedes them.\n"
+    "    - For new messages: NEVER modify the existing update text — only append a new timestamped line.\n"
+    "    - For source edits: rebuild response_message entirely from the authoritative source lines.\n"
     "    - NEVER invent facts not present in either the existing update or the new message.\n"
-    "    - When ending: append resolution to the existing narrative — do not erase what happened.\n"
+    "    - When ending: append `{arrival_time} - {resolution}` — do not erase what happened.\n"
     "    - Source edits: the post-edit authoritative source lines override earlier wording. If an edit replaces alert text with non-alert filler, strip that channel’s contribution from the operational picture; rebuild response_message from the remaining authoritative sources only; do not resurrect threat details from the old unified text that no longer appear in any source line.\n"
     "\n"
     f"{FAITHFULNESS}"
@@ -169,12 +199,15 @@ def build_ongoing_prompt(
     source_messages_context: str | None = None,
     is_source_edit: bool = False,
     edited_message_previous_text: str | None = None,
+    message_ts_il: str | None = None,
 ) -> str:
     parts: list[str] = [
         ONGOING_PROMPT,
         f"\nThe existing update: '{existing_update}'",
         f"The existing incident priority: '{existing_priority}'",
     ]
+    if message_ts_il and not is_source_edit:
+        parts.append(f"Arrival time of the incoming message: {message_ts_il}")
     if source_messages_context and source_messages_context.strip():
         parts.append(
             f"\nAuthoritative source messages (latest versions only):\n"

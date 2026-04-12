@@ -35,7 +35,8 @@ from components.utils import (
     get_reply_message_id,
     json_log_maker,
     message_contains_video,
-    message_timestamp,
+    message_timestamp_for_deletion_event,
+    message_timestamp_for_incident,
     monitored_chats_list,
     resolve_monitored_peer_ids,
     resolve_source_chat,
@@ -317,7 +318,6 @@ class LionsRoar:
                         alert_priority=snapshot.alert_priority,
                         close_reason=close_reason,
                         subject=closed_subject,
-                        alert_body_segments=list(snapshot.alert_body_segments),
                     )
                 except Exception:
                     logger.exception(
@@ -432,7 +432,6 @@ class LionsRoar:
                             alert_priority=ended.alert_priority,
                             close_reason=CloseReason.TTL,
                             subject=closed_subject,
-                            alert_body_segments=list(ended.alert_body_segments),
                         )
                     except Exception:
                         logger.exception(
@@ -482,7 +481,6 @@ class LionsRoar:
                     pending_start_time = opened.start_time
                     pending_priority = opened.alert_priority
                     pending_subject = opened.subject
-                    pending_alert_segments = list(opened.alert_body_segments)
                     self._schedule_deferred_close(
                         incident_id, CloseReason.INFORMATIONAL_GRACE, defer_seconds
                     )
@@ -500,7 +498,6 @@ class LionsRoar:
                             subject=pending_subject,
                             pending_close_reason=CloseReason.INFORMATIONAL_GRACE,
                             pending_close_seconds=defer_seconds,
-                            alert_body_segments=pending_alert_segments,
                         )
                     return
                 snapshot = self._tracker.end_incident(utc_now())
@@ -537,7 +534,6 @@ class LionsRoar:
                         alert_priority=snapshot.alert_priority,
                         close_reason=CloseReason.INFORMATIONAL_GRACE,
                         subject=closed_subject,
-                        alert_body_segments=list(snapshot.alert_body_segments),
                     )
                 except Exception:
                     logger.exception(
@@ -619,7 +615,9 @@ class LionsRoar:
 
         prep: ExistingIncidentPrep | None = None
         recent_appendix: str | None = None
-        message_ts = message_timestamp(message)
+        message_ts = message_timestamp_for_incident(
+            message, is_edited_event=(event_type == MessageType.EDITED_MESSAGE)
+        )
 
         async with self._open_incident_lock:
             opened_incident: ActiveIncident | None = self._tracker.get_open_incident()
@@ -744,7 +742,6 @@ class LionsRoar:
                     alert_priority=pending_close.alert_priority,
                     close_reason=pending_close.close_reason,
                     subject=closed_subject,
-                    alert_body_segments=pending_close.alert_body_segments,
                 )
             except Exception:
                 logger.exception(
@@ -866,7 +863,7 @@ class LionsRoar:
                     pre_deletion = self._incident_handler.handle_message_deletion(
                         channel_id=channel_id,
                         deleted_message_ids=[message_id],
-                        message_ts=utc_now(),
+                        message_ts=message_timestamp_for_deletion_event(),
                     )
                     if (
                         pre_deletion is not None
@@ -935,7 +932,6 @@ class LionsRoar:
                         subject=open_i.subject,
                         pending_close_reason=pr,
                         pending_close_seconds=ps,
-                        alert_body_segments=list(open_i.alert_body_segments),
                     )
                 except Exception:
                     logger.exception(
@@ -989,7 +985,6 @@ class LionsRoar:
                     alert_priority=snapshot.alert_priority,
                     close_reason=CloseReason.SOURCE_DELETED,
                     subject=closed_subject,
-                    alert_body_segments=list(snapshot.alert_body_segments),
                 )
             except Exception:
                 logger.exception(
@@ -1010,7 +1005,7 @@ class LionsRoar:
         deleted_ids = [int(x) for x in deleted_raw]
         if not deleted_ids:
             return
-        message_ts = utc_now()
+        message_ts = message_timestamp_for_deletion_event(event)
         reprocess_pack: tuple[ActiveIncident, str, str] | None = None
         grace_incident_id: str | None = None
         async with self._open_incident_lock:
@@ -1074,7 +1069,6 @@ class LionsRoar:
                     alert_priority=pending_close.alert_priority,
                     close_reason=pending_close.close_reason,
                     subject=closed_subject,
-                    alert_body_segments=pending_close.alert_body_segments,
                 )
             except Exception:
                 logger.exception(
@@ -1172,7 +1166,6 @@ class LionsRoar:
                     close_reason=CloseReason.MANUAL,
                     subject=closed_subject,
                     custom_close_reason=custom_close_reason,
-                    alert_body_segments=list(snapshot.alert_body_segments),
                 )
             except Exception:
                 logger.exception(

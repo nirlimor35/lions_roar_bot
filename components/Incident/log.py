@@ -55,26 +55,7 @@ def append_message(
     }
     if parent_message_id is not None:
         record["parent_message_id"] = parent_message_id
-    existing_index = next(
-        (
-            idx
-            for idx, item in enumerate(records)
-            if item.get("event") != "incident_closed"
-            and item.get("channel_name") == channel_name
-            and int(item.get("message_id", -1)) == int(message_id)
-        ),
-        None,
-    )
-    if existing_index is None:
-        records.append(record)
-    else:
-        existing = records[existing_index]
-        previous_message = str(existing.get("message", ""))
-        updated = dict(existing)
-        updated.update(record)
-        if previous_message and previous_message != message:
-            updated["previous_message"] = previous_message
-        records[existing_index] = updated
+    records.append(record)
 
     tmp_target = target.with_suffix(f"{target.suffix}.tmp")
     tmp_target.write_text(

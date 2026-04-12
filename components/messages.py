@@ -18,7 +18,6 @@ from components.constants import (
 )
 from components.utils import (
     ensure_utc,
-    format_timelined_alert_body,
     format_ts_il,
     json_log_maker,
     sanitize_alert_body_text,
@@ -53,7 +52,9 @@ class TelegramMessageSender:
         self._bump_on_edit = bump_on_edit
         self._delete_bump_message = delete_bump_message
         self._api_max_attempts = max(1, int(api_max_attempts))
-        self._rate_limit_fallback_base = max(0.1, float(rate_limit_fallback_base_seconds))
+        self._rate_limit_fallback_base = max(
+            0.1, float(rate_limit_fallback_base_seconds)
+        )
         self._rate_limit_fallback_max = max(
             self._rate_limit_fallback_base, float(rate_limit_fallback_max_seconds)
         )
@@ -86,7 +87,6 @@ class TelegramMessageSender:
         custom_close_reason: str | None = None,
         pending_close_reason: CloseReason | None = None,
         pending_close_seconds: int | None = None,
-        alert_body_segments: list[tuple[datetime, str]] | None = None,
     ) -> str:
         if ended_at is not None:
             prefix = AlertTitles.ENDED
@@ -104,10 +104,7 @@ class TelegramMessageSender:
                 ["<b>ערוצים:</b>", *[f"{_RLI}- {name}{_PDI}" for name in safe_channels]]
             )
 
-        if alert_body_segments:
-            body_plain = format_timelined_alert_body(unified_text, alert_body_segments)
-        else:
-            body_plain = sanitize_alert_body_text(unified_text)
+        body_plain = sanitize_alert_body_text(unified_text)
 
         lines = [
             f"<b>{html.escape(prefix)}</b>",
@@ -128,9 +125,7 @@ class TelegramMessageSender:
             wait_minutes = max(1, (wait_seconds + 59) // 60)
             expected_close_at = ensure_utc(utc_now() + timedelta(seconds=wait_seconds))
             lines.append("")
-            lines.append(
-                f"<b>סטטוס:</b> מועמד לסגירה בעוד כ-{wait_minutes} דקות"
-            )
+            lines.append(f"<b>סטטוס:</b> מועמד לסגירה בעוד כ-{wait_minutes} דקות")
             lines.append(
                 f"<b>סגירה צפויה:</b> {html.escape(format_ts_il(expected_close_at))}"
             )
@@ -201,7 +196,11 @@ class TelegramMessageSender:
         *,
         max_attempts: int | None = None,
     ) -> httpx.Response:
-        attempts = self._api_max_attempts if max_attempts is None else max(1, int(max_attempts))
+        attempts = (
+            self._api_max_attempts
+            if max_attempts is None
+            else max(1, int(max_attempts))
+        )
         async with httpx.AsyncClient(timeout=10.0) as client:
             for attempt in range(1, attempts + 1):
                 try:
@@ -315,7 +314,6 @@ class TelegramMessageSender:
         custom_close_reason: str | None = None,
         pending_close_reason: CloseReason | None = None,
         pending_close_seconds: int | None = None,
-        alert_body_segments: list[tuple[datetime, str]] | None = None,
     ) -> int:
         body = self._build_alert_html(
             channels,
@@ -328,7 +326,6 @@ class TelegramMessageSender:
             custom_close_reason=custom_close_reason,
             pending_close_reason=pending_close_reason,
             pending_close_seconds=pending_close_seconds,
-            alert_body_segments=alert_body_segments,
         )
         resp = await self._request_with_retry(
             "sendMessage",
@@ -383,7 +380,6 @@ class TelegramMessageSender:
         custom_close_reason: str | None = None,
         pending_close_reason: CloseReason | None = None,
         pending_close_seconds: int | None = None,
-        alert_body_segments: list[tuple[datetime, str]] | None = None,
     ) -> bool:
         body = self._build_alert_html(
             channels,
@@ -396,7 +392,6 @@ class TelegramMessageSender:
             custom_close_reason=custom_close_reason,
             pending_close_reason=pending_close_reason,
             pending_close_seconds=pending_close_seconds,
-            alert_body_segments=alert_body_segments,
         )
         resp = await self._request_with_retry(
             "editMessageText",

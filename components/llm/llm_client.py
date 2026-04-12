@@ -149,6 +149,7 @@ class LLMClient:
         source_messages_context: str | None = None,
         is_source_edit: bool = False,
         edited_message_previous_text: str | None = None,
+        message_ts_il: str | None = None,
     ) -> LLMResponse:
         if parent_message:
             user_content = (
@@ -174,6 +175,7 @@ class LLMClient:
             source_messages_context=source_messages_context,
             is_source_edit=is_source_edit,
             edited_message_previous_text=edited_message_previous_text,
+            message_ts_il=message_ts_il,
         )
         response = await self._ask_llm(user_content, system_prompt, message_type)
         logger.debug(

@@ -39,6 +39,18 @@ def message_timestamp(message) -> datetime:
     return ensure_utc(d)
 
 
+def message_timestamp_for_incident(message, *, is_edited_event: bool = False) -> datetime:
+    if is_edited_event:
+        ed = getattr(message, "edit_date", None)
+        if ed is not None:
+            return ensure_utc(ed)
+    return message_timestamp(message)
+
+
+def message_timestamp_for_deletion_event(_event=None) -> datetime:
+    return utc_now()
+
+
 def to_il_tz(dt: datetime) -> datetime:
     """Convert a UTC (or naive-UTC) datetime to Israel local time."""
     return ensure_utc(dt).astimezone(_IL_TZ)
@@ -51,42 +63,6 @@ def format_ts_il(dt: datetime) -> str:
 
 def format_time_il_hm(dt: datetime) -> str:
     return to_il_tz(ensure_utc(dt)).strftime("%H:%M")
-
-
-def split_last_sentence(body: str) -> tuple[str, str]:
-    b = (body or "").strip()
-    if not b:
-        return "", ""
-    for sep in (".\n", ". "):
-        pos = b.rfind(sep)
-        if pos != -1:
-            head = b[: pos + 1].strip()
-            tail = b[pos + len(sep) :].strip()
-            if tail:
-                return head, tail
-    return "", b
-
-
-def format_timelined_alert_body(
-    unified_text: str, segments: list[tuple[datetime, str]]
-) -> str:
-    base = sanitize_alert_body_text(unified_text)
-    if not segments:
-        return base
-    if len(segments) == 1:
-        ts, txt = segments[0]
-        body = (txt or "").strip()
-        if not body:
-            return base
-        return f"{format_time_il_hm(ts)} {body}"
-    ts_last = segments[-1][0]
-    head, tail = split_last_sentence(base)
-    if head and tail:
-        return f"{head}\n\n{format_time_il_hm(ts_last)} - {tail}"
-    last_src = (segments[-1][1] or "").strip()
-    if last_src:
-        return f"{base}\n\n{format_time_il_hm(ts_last)} - {last_src}"
-    return f"{base}\n\n{format_time_il_hm(ts_last)}"
 
 
 def monitored_chats_list(monitored_chats) -> list:
