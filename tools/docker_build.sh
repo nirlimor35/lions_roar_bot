@@ -1,6 +1,7 @@
 #!/bin/bash
+set -euo pipefail
 
-version=$1
+version=${1:-}
 app_name="lions_roar"
 build_log="build.log"
 platform="linux/amd64"
@@ -37,11 +38,14 @@ docker save -o ${file_name} ${container_name}
 log_step "Step 4/5: Copying archive to remote host"
 log_step "Source file: ${file_name}"
 
-scp -i ~/.ssh/gcp_key ${file_name} nir@34.41.251.160:/home/nir
+scp -i ~/.ssh/gcp_key "${file_name}" nir@34.132.21.31:/home/nir
 
 log_step "Step 5/5: cleaning up"
-docker rmi ${app_name}
-docker rmi ${container_name}
-docker rmi $(docker images -q)
-rm ${file_name}
+docker rmi "${app_name}"
+docker rmi "${container_name}"
+all_images="$(docker images -q)"
+if [ -n "${all_images}" ]; then
+    docker rmi ${all_images}
+fi
+rm "${file_name}"
 log_step "Release script finished successfully"

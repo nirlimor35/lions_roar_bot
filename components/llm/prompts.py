@@ -241,7 +241,3 @@ def build_closed_subject_prompt(
         close_reason_code=close_reason_code,
         close_reason_label=close_reason_label_text,
     )
-
-
-if __name__ == "__main__":
-    print(FIRST_PROMPT)

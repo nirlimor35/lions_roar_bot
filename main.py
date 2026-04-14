@@ -28,9 +28,7 @@ from components.Incident.handler import (
     PendingClosedAlertEdit,
 )
 from components.Incident.tracker import ActiveIncident, IncidentTracker
-from components.llm.groq_client import GroqClient
 from components.llm.llm_client import LLMClient
-from components.llm.openrouter_client import OpenRouterClient
 from components.messages import TelegramMessageSender
 from components.utils import (
     ensure_utc,
@@ -48,29 +46,6 @@ from components.utils import (
 )
 
 
-def _pair_from_llm_models(
-    raw: dict | None, provider: str
-) -> tuple[str | None, str | None]:
-    if not isinstance(raw, dict):
-        return None, None
-    block = raw.get(provider)
-    if isinstance(block, dict):
-        d = block.get("day")
-        n = block.get("night")
-        return (
-            str(d).strip() if d else None,
-            str(n).strip() if n else None,
-        )
-    if provider == "openai":
-        d, n = raw.get("day"), raw.get("night")
-        if isinstance(d, str) or isinstance(n, str):
-            return (
-                str(d).strip() if isinstance(d, str) and d else None,
-                str(n).strip() if isinstance(n, str) and n else None,
-            )
-    return None, None
-
-
 class LionsRoar:
     # Class-level load so config is available before __init__ (used by class attributes below).
     with open(f"{os.path.dirname(__file__)}/config.yaml", "r") as f:
@@ -86,32 +61,11 @@ class LionsRoar:
     )
     monitored_chats = config.get("monitored_chats")
 
-    used_llm = (config.get("used_llm") or "openai").strip().lower()
-    _llm_type_raw = (config.get("llm_type") or config.get("used_llm") or "openai").strip().lower()
-    llm_type = (
-        _llm_type_raw
-        if _llm_type_raw in ("openai", "groq", "openrouter")
-        else "openai"
-    )
+    openai_api_key = config.get("openai_api_key")
     _llm_models = config.get("LLM_models")
     _llm_models = _llm_models if isinstance(_llm_models, dict) else {}
-    _openai_day, _openai_night = _pair_from_llm_models(_llm_models, "openai")
-    _groq_day, _groq_night = _pair_from_llm_models(_llm_models, "groq")
-    _openrouter_day, _openrouter_night = _pair_from_llm_models(
-        _llm_models, "openrouter"
-    )
-    if llm_type == "groq":
-        day_model = _groq_day or "llama-3.1-8b-instant"
-        night_model = _groq_night or "openai/gpt-oss-120b"
-    elif llm_type == "openrouter":
-        day_model = _openrouter_day or "openai/gpt-4o-mini"
-        night_model = _openrouter_night or "openai/gpt-4o"
-    else:
-        day_model = _openai_day or "gpt-5.4-mini"
-        night_model = _openai_night or "gpt-5.4"
-    openai_api_key = config.get("openai_api_key")
-    groq_api_key = config.get("groq_api_key")
-    openrouter_api_key = config.get("openrouter_api_key")
+    day_model = _llm_models.get("day") or "gpt-5.4-mini"
+    night_model = _llm_models.get("night") or "gpt-5.4"
 
     # Bot credentials
     bot_token = config.get("bot_token")
@@ -126,31 +80,10 @@ class LionsRoar:
         self._incident_pipeline_sem = asyncio.Semaphore(1)
         self._client = TelegramClient(self.session_name, self.app_id, self.api_hash)
         self._tracker = IncidentTracker()
-        if self.llm_type == "groq":
-            if not self.groq_api_key:
-                logger.error(
-                    f"{ModuleColors.MAIN} | {json_log_maker(llm_type=self.llm_type)} | groq_api_key missing"
-                )
-                sys.exit(1)
-            self._llm = GroqClient(
-                api_key=self.groq_api_key,
-                model=self._resolve_model_for_current_israel_time,
-            )
-        elif self.llm_type == "openrouter":
-            if not self.openrouter_api_key:
-                logger.error(
-                    f"{ModuleColors.MAIN} | {json_log_maker(llm_type=self.llm_type)} | openrouter_api_key missing"
-                )
-                sys.exit(1)
-            self._llm = OpenRouterClient(
-                api_key=self.openrouter_api_key,
-                model=self._resolve_model_for_current_israel_time,
-            )
-        else:
-            self._llm = LLMClient(
-                api_key=self.openai_api_key,
-                model=self._resolve_model_for_current_israel_time,
-            )
+        self._llm = LLMClient(
+            openai_api_key=self.openai_api_key,
+            model=self._resolve_model_for_current_israel_time,
+        )
         tb_cfg = cfg.get("telegram_bot_api")
         tb_section = tb_cfg if isinstance(tb_cfg, dict) else {}
         self._telegram_sender = TelegramMessageSender(
@@ -1357,5 +1290,8 @@ if __name__ == "__main__":
 
     logger.info("\033[93;1mStarting Lions Roar\033[00m")
 
-    lions_roar = LionsRoar()
-    asyncio.run(lions_roar.main())
+    async def _start():
+        lions_roar = LionsRoar()
+        await lions_roar.main()
+
+    asyncio.run(_start())

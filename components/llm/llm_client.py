@@ -46,17 +46,8 @@ class LLMResponse:
 
 
 class LLMClient:
-    def __init__(
-        self,
-        api_key: str,
-        model: str | Callable[[], str],
-        *,
-        base_url: str | None = None,
-    ):
-        client_kwargs: dict = {"api_key": api_key}
-        if base_url:
-            client_kwargs["base_url"] = base_url
-        self._client = AsyncOpenAI(**client_kwargs)
+    def __init__(self, openai_api_key: str, model: str | Callable[[], str]):
+        self._client = AsyncOpenAI(api_key=openai_api_key)
         self._model = model
 
     def _resolve_model(self) -> str:
