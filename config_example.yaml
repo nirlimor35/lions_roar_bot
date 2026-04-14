@@ -10,10 +10,16 @@ monitored_chats:
   - ramreports
   - nir_lr_test_1
   - nir_lr_test_2
+llm_type: openai
 LLM_models:
-  day: gpt-5.4-mini
-  night: gpt-5.4
+  openai:
+    day: gpt-5.4-mini
+    night: gpt-5.4
+  groq:
+    day: llama-3.1-8b-instant
+    night: openai/gpt-oss-120b
 openai_api_key: sk-proj-DRrKRT8f...
+groq_api_key: gsk_...
 bot_token: 86779191233:AAHg...
 telegram_bot_api:
   max_attempts: 6

@@ -1,24 +1,24 @@
 PRIORITY_AREAS = (
     "גבעתיים (Givatayim), גוש דן (Gush Dan), המרכז (central Israel —"
     "Givatayim is in the Central District; rockets or salvo focus “למרכז/מיקוד למרכז/המרכז”"
-    "are in-scope for this family)"
+    "are in-scope for this user)"
 )
 PRIORITY_SCALE = (
     "Priority levels:\n"
-    "- high: גבעתיים or a named גוש דן / המרכז city is **explicitly stated** as an affected area or required to take shelter. Generic nationwide alerts, nearby regions (שרון, שפלה, בקעה), or urgency wording alone are NOT enough for high.\n"
-    "- warning: Active home-front threat where the affected area is unconfirmed or still being clarified. NOT warning once scope is explicitly established as entirely outside the priority areas.\n"
-    "- informational: Threat explicitly at a named city in גוש דן / המרכז (e.g. רמת גן, פתח תקווה, הרצליה, בני ברק) that is NOT גבעתיים.\n"
     "- none: Unqualified — not relevant or scope is outside the priority areas.\n"
+    "- informational: Threat explicitly at a named city in גוש דן / המרכז (e.g. רמת גן, פתח תקווה, הרצליה, בני ברק) that is NOT גבעתיים.\n"
+    "- warning: Active home-front threat where the affected area is unconfirmed or still being clarified. NOT warning once scope is explicitly established as entirely outside the priority areas.\n"
+    '- high: Never Use unless the city Givatayim (גבעתיים) or the central district ("המרכז"/"איזור המרכז") explicitly mentioned in the message. message without a destination does not qualify'
 )
 GUIDELINES = (
     "Guidelines:\n"
-    "Always read the full message and context and rephrase the message in your own words.\n"
-    "Avoid passing text verbatim and avoid repetition of the same information.\n"
-    "Never use emojis.\n"
-    "Do not include safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן'.\n"
-    "Do not include the fact that the details are being verified or that the details are being investigated. (e.g., הפרטים בבדיקה)\n"
-    "Do not give advice on what to do in the event of a missile attack. (e.g., הישארו מעודכנים, הישארו בסמוך למרחב המוגן, יש להתמגן, להתמגן) even if this advice is in the update.\n"
-    "Do not include details regarding explosions or impact. (e.g., הנפילה, הפגיעה, הפיצוץ, הפגיעה, הפיצוץ)\n"
+    "- Always read the full message and context and rephrase the message in your own words.\n"
+    "- Avoid passing text verbatim and avoid repetition of the same information.\n"
+    '- Reply with a single JSON object only - {{"response_message": string in Hebrew only with no emojis, "qualified": boolean, "priority": "none"|"informational"|"warning"|"high"}}\n'
+    "- State ONLY facts present in the provided text. NEVER add, infer, or embellish.\n"
+    "- Do not include or give safety recommendations such as 'הישארו מעודכנים' or 'הישארו בסמוך למרחב המוגן' even when this advice is in the update.\n"
+    "- Do not include the fact that the details are being verified or that the details are being investigated. (e.g., הפרטים בבדיקה)\n"
+    "- Do not include details regarding explosions or impact. (e.g., הנפילה, הפגיעה, הפיצוץ, הפגיעה, הפיצוץ)\n"
 )
 DISQUALIFIERS = (
     "NOT qualified (set qualified=false, priority=none) when ANY of these apply:\n"
@@ -33,38 +33,24 @@ DISQUALIFIERS = (
     '- When the message is referring to a government statement like the Prime Minister or Defense Minister.\n'
     '- Enemy/adversary battle claim: a statement by Iran (משמרות המהפכה, IRGC), Hamas, Hezbollah, or any hostile entity claiming they **carried out** an attack — e.g. "תקפנו", "שיגרנו", "פגענו". These are past-tense enemy announcements reported as news, not live civil-defense alerts — qualified=false regardless of whether the weapon type is missiles or rockets.\n'
     '- Security/intelligence assessment or forecast: statements where the defense establishment, security sources, or analysts **estimate or predict** future fire or escalation — e.g. "מעריכים כי", "הערכות", "צופים ש", "מקורות ביטחוניים". A prediction that fire *will* increase is NOT an active incoming threat. No Pikud Haoref shelter instruction means qualified=false.\n'
-)
-FAITHFULNESS = (
-    "Faithfulness — CRITICAL:\n"
-    "    - State ONLY facts present in the provided text. NEVER add, infer, or embellish.\n"
-    "    - Hebrew only. Concise, self-contained, no emojis.\n"
-    "    - Rephrase in your own words — never pass text verbatim.\n"
-    "    - Rephrase in your own words — never pass text verbatim.\n"
+    '- Do NOT set qualified=true for **situational reports, roundups, or headline statistics**: tallying or summarizing many alert zones or events (e.g. "כמעט N זירות", "עשרות אזעקות", counting זירות/רשויות) as a **picture of the situation**, especially with **בעקבות הירי / בעקבות המטח / בעקבות השיגורים** (journalistic "in the wake of" framing). That is **news-style summary**, not a single Pikud Haoref-style actionable line — qualified=false even if המרכז or Iran appear.\n'
+    '- Sensational editorial openers (מטורף, וואו, שובר, בלעדי, דיווח) when the rest is **aggregate or summary** (counts, breadth, "כמעט N") — qualified=false unless the same line also gives an **immediate** active threat to the priority areas in civil-defense terms (שיגורים בדרך, מיקוד, חובת שהייה, חדירה, אזעקה פעילה, ETA, arrival).\n'
+    '- **Past or recap (not a live opener):** Do not open a new incident when the text is backward-looking or summarizes what already unfolded: "הנפילה", "במטח האחרון", past-tense explosions, **"בשעה האחרונה" / "בשעות האחרונות"** as a headline for what occurred, or outcome lines like **"יש יירוטים ונפילות"** / **"לא דווח על נפגעים"** with no **right-now** shelter/siren/incoming-focus line. That pattern is a news roundup, not an actionable opening alert.\n'
 )
 FIRST_PROMPT = (
     f"You classify messages from Israeli Telegram channels about home-front security events.\n"
     f"{GUIDELINES}\n"
-    "\n"
-    "Reply with a single JSON object only:\n"
-    '{{"response_message": string, "qualified": boolean, "priority": "none"|"informational"|"warning"|"high"}}\n'
-    "\n"
+    
     f"Priority areas: {PRIORITY_AREAS}.\n"
-    "\n"
+    
     "Set qualified=true in the following cases:\n"
     "- When the message refers to missile, rocket or an unmanned aerial vehicle, or other launch to Israel.\n"
     "- When the message refers to preparations for missile or rocket launch to Israel.\n"
-    "\n"
-    "Opening a **new** incident: the two bullets above are **necessary** but **not sufficient**. Set qualified=false if any DISQUALIFIER applies or any standalone-opener rule below applies — rockets, Lebanon, or Iran named in a **recap** still means qualified=false.\n"
-    "\n"
-    "Standalone opener only (no incident open yet) — these narrow the missile bullets above:\n"
-    '- Do NOT set qualified=true for **situational reports, roundups, or headline statistics**: tallying or summarizing many alert zones or events (e.g. "כמעט N זירות", "עשרות אזעקות", counting זירות/רשויות) as a **picture of the situation**, especially with **בעקבות הירי / בעקבות המטח / בעקבות השיגורים** (journalistic "in the wake of" framing). That is **news-style summary**, not a single Pikud Haoref-style actionable line — qualified=false even if המרכז or Iran appear.\n'
-    '- Sensational editorial openers (מטורף, וואו, שובר, בלעדי, דיווח) when the rest is **aggregate or summary** (counts, breadth, "כמעט N") — qualified=false unless the same line also gives an **immediate** active threat to the priority areas in civil-defense terms (שיגורים בדרך, מיקוד, חובת שהייה, חדירה, אזעקה פעילה, ETA, arrival).\n'
     'Still qualify when the line is a **direct operational alert** (incoming focus, shelter, active sirens, מיקוד למרכז/לגוש דן, שיגורים בדרך) without relying on aggregate counts or "בעקבות" situational wrap-ups as the main content.\n'
-    '- **Past or recap (not a live opener):** Do not open a new incident when the text is backward-looking or summarizes what already unfolded: "הנפילה", "במטח האחרון", past-tense explosions, **"בשעה האחרונה" / "בשעות האחרונות"** as a headline for what occurred, or outcome lines like **"יש יירוטים ונפילות"** / **"לא דווח על נפגעים"** with no **right-now** shelter/siren/incoming-focus line for the family. That pattern is a news roundup, not an actionable opening alert.\n'
-    "\n"
+    
     f"{DISQUALIFIERS}\n"
     f"{PRIORITY_SCALE}\n"
-    f"{FAITHFULNESS}"
+    
 )
 ONGOING_PROMPT = (
     f"You manage an open Israeli home-front incident alert in the priority areas.\n"
@@ -74,7 +60,7 @@ ONGOING_PROMPT = (
     "Do not treat trailing channel promos as downgrading priority if the operational line is unchanged\n"
     "\n"
     "You will receive:\n"
-    "- The existing update (the narrative the family currently sees)\n"
+    "- The existing update (the narrative the user is currently seeing)\n"
     "- The existing incident priority\n"
     "- A new incoming message (with optional parent message context)\n"
     "- Optionally: authoritative source messages (ground-truth timeline)\n"
@@ -108,13 +94,15 @@ ONGOING_PROMPT = (
     "3 - ended — Has the incident ended?\n"
     "    True when: all-clear or safe to leave shelter; scope confirmed entirely outside priority areas (narrowed to צפון, נגב, שפלה, etc.); no remaining active danger.\n"
     '    Scope-close trigger (CRITICAL): Once the combined information from all sources establishes that the threat targets ONLY areas outside the priority areas (e.g. only נגב/דרום, only צפון/חיפה, or both but NOT גבעתיים/גוש דן/המרכז), set ended=true and close_reason="out_of_subscriber_areas" IMMEDIATELY — even if the threat itself is still active. Named cities like חיפה, באר שבע, דימונה, אשקלון are all outside the priority areas. Release time / shelter-release announcements (צפי שחרור) for non-priority areas further confirm the incident is outside scope.\n'
-    '    Center / מרכז guard (CRITICAL): גבעתיים sits in the Central District. Any line that places, narrows, or focuses the salvo toward המרכז, מיקוד למרכז," למרכז, מרכז הארץ, or the Tel Aviv metro keeps the threat inside the priority areas — do NOT end with out_of_subscriber_areas. Only end that way when scope is clearly confined to regions that exclude the center (and exclude גוש דן) — not when the family-facing narrative still describes impact or trajectory toward the center.\n'
+    '    Center / מרכז guard (CRITICAL): גבעתיים sits in the Central District. Any line that places, narrows, or focuses the salvo toward המרכז, מיקוד למרכז," למרכז, מרכז הארץ, or the Tel Aviv metro keeps the threat inside the priority areas — do NOT end with out_of_subscriber_areas. Only end that way when scope is clearly confined to regions that exclude the center (and exclude גוש דן) — not when the user-facing narrative still describes impact or trajectory toward the center.\n'
     "    Do NOT keep ended=false just because the overall event is still developing — once it is clear the threat will not affect the priority areas, end it.\n"
     '    close_reason: "all_clear" or "out_of_subscriber_areas" as appropriate. Null when ended=false.\n'
     "4 - qualified / priority — Classification of the combined situation.\n"
     "    When ended=true → qualified=false, priority=none.\n"
     "    When related=false → ended=false, qualified=false, priority=none. Keep response_message as the existing update text unchanged.\n"
-    "    Qualification lock: classify the **combined** situation after the merge. Re-run every DISQUALIFIERS check on that combined picture. If the family-facing narrative still describes a threat whose scope is **only** outside the priority areas, qualified MUST be false and priority MUST be none — including when the new line is noise, a duplicate, or a source edit that drops operational content. You MUST NOT set qualified=true or raise priority just because the previous JSON turn did something different; each merge is a full re-classification.\n"
+    "    Qualification lock: classify the **combined** situation after the merge. Re-run every DISQUALIFIERS check on that combined picture. "
+    "If the user-facing narrative still describes a threat whose scope is **only** outside the priority areas, qualified MUST be false and priority MUST be none — including when the new line is noise, a duplicate, or a source edit that drops operational content. "
+    "You MUST NOT set qualified=true or raise priority just because the previous JSON turn did something different; each merge is a full re-classification.\n"
     "    Monotonicity for out-of-scope scope: if the existing update already established that impact or shelter applies only outside גבעתיים / גוש דן / המרכז, a later message that adds no new facts placing the threat inside those areas MUST NOT increase priority (e.g. must not go from none back to warning) and MUST keep qualified=false unless DISQUALIFIERS allow qualification again.\n"
     "\n"
     f"{DISQUALIFIERS}"
@@ -129,7 +117,6 @@ ONGOING_PROMPT = (
     "    - When ending: append `{arrival_time} - {resolution}` — do not erase what happened.\n"
     "    - Source edits: the post-edit authoritative source lines override earlier wording. If an edit replaces alert text with non-alert filler, strip that channel’s contribution from the operational picture; rebuild response_message from the remaining authoritative sources only; do not resurrect threat details from the old unified text that no longer appear in any source line.\n"
     "\n"
-    f"{FAITHFULNESS}"
     "\n"
     "subject: Hebrew headline (max 6 words) only when qualified=true AND priority=high AND existing incident priority was NOT already high. Empty string otherwise.\n"
     "\n"
@@ -137,29 +124,31 @@ ONGOING_PROMPT = (
     '{{"response_message": string, "qualified": boolean, "priority": "none"|"informational"|"warning"|"high", "related": boolean, "ended": boolean, "close_reason": string|null, "subject": string}}\n'
 )
 REPROCESS_AFTER_DELETION_PROMPT = (
-    "You manage an open Israeli home-front incident alert for a family in the priority areas.\n"
+    "You manage an open Israeli home-front incident alert for a user in the priority areas.\n"
     f"Priority areas: {PRIORITY_AREAS}.\n"
+    f"{GUIDELINES}\n"
     "One or more source messages were removed from Telegram (deleted). They must no longer influence the narrative.\n"
     "You will receive:"
-    "- The existing update text the family currently sees (may be partially obsolete)"
+    "- The existing update text the user is currently seeing (may be partially obsolete)"
     "- The existing incident priority"
     "- The remaining authoritative source messages only (ground truth)\n"
     "Rebuild the incident from scratch using ONLY the remaining source lines. Treat the existing update as a hint that may be wrong; the sources are authoritative.\n"
     f"{DISQUALIFIERS}\n"
     f"{PRIORITY_SCALE}\n"
-    "Rules:"
-    "    - response_message — One concise Hebrew narrative reflecting ONLY facts still present in the remaining sources."
-    "    - related — Always true (this is a correction pass, not a new thread)."
-    "    - ended — true only if the remaining sources alone contain a real closure signal (all-clear, scope entirely outside priority areas). Otherwise false."
-    "    - When ended=true → qualified=false, priority=none, close_reason as appropriate."
+    "Rules:\n"
+    "    - response_message — One concise Hebrew narrative reflecting ONLY facts still present in the remaining sources.\n"
+    "    - related — Always true (this is a correction pass, not a new thread).\n"
+    "    - ended — true only if the remaining sources alone contain a real closure signal (all-clear, scope entirely outside priority areas). Otherwise false.\n"
+    "    - When ended=true → qualified=false, priority=none, close_reason as appropriate.\n"
     "    - When ended=false → qualified=true if any remaining source supports an active incident, with priority from the combined remaining scope.\n"
-    f"{FAITHFULNESS}\n"
+    "\n"
     "subject: Hebrew headline (max 6 words) only when qualified=true AND priority=high AND the rebuilt incident warrants high priority. Empty string otherwise.\n"
+    "\n"
     "Reply with a single JSON object only:\n"
     '{"response_message": string, "qualified": boolean, "priority": "none"|"informational"|"warning"|"high", "related": boolean, "ended": boolean, "close_reason": string|null, "subject": string}\n'
 )
 CLOSED_INCIDENT_SUBJECT_PROMPT = (
-    "A home-front incident alert has been closed. You receive the full Hebrew text shown to the family across all updates.\n"
+    "A home-front incident alert has been closed. You receive the full Hebrew text shown to the user across all updates.\n"
     "Write one very short Hebrew sentence (max 12 words) summarizing the incident: geographic focus, what happened, and outcome. Do not invent facts. No emojis.\n"
     "\n"
     "Close reason: {close_reason_code}\n"
@@ -252,3 +241,7 @@ def build_closed_subject_prompt(
         close_reason_code=close_reason_code,
         close_reason_label=close_reason_label_text,
     )
+
+
+if __name__ == "__main__":
+    print(FIRST_PROMPT)
