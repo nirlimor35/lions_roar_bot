@@ -193,7 +193,16 @@ class IncidentHandler:
             self._client, prep.channel_id, prep.message
         )
         logger.info(
-            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=prep.incident_id, channel=prep.channel_name, has_reply_parent=reply_parent_text is not None)} | LLM merge request",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | "
+            f"{
+                json_log_maker(
+                    incident_id=prep.incident_id,
+                    channel=prep.channel_name,
+                    has_reply_parent=reply_parent_text is not None,
+                    original_message=prep.text,
+                )
+            }"
+            " | LLM merge request",
         )
         return await self._llm.run_llm(
             event_message=prep.text,
@@ -203,7 +212,9 @@ class IncidentHandler:
             source_messages_context=prep.source_messages_context,
             is_source_edit=prep.is_source_edit,
             edited_message_previous_text=prep.previous_source_text,
-            message_ts_il=None if prep.is_source_edit else format_time_il_hm(prep.message_ts),
+            message_ts_il=None
+            if prep.is_source_edit
+            else format_time_il_hm(prep.message_ts),
         )
 
     async def apply_existing_incident_locked_phase(
@@ -267,7 +278,18 @@ class IncidentHandler:
             )
         ):
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id, related=getattr(llm_response, 'related', None), qualified=getattr(llm_response, 'qualified', None), ended=getattr(llm_response, 'ended', None), reasoning=getattr(llm_response, 'reasoning', None))} | LLM result ignored",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | "
+                f"{
+                    json_log_maker(
+                        incident_id=opened_incident.incident_id,
+                        related=getattr(llm_response, 'related', None),
+                        qualified=getattr(llm_response, 'qualified', None),
+                        ended=getattr(llm_response, 'ended', None),
+                        original_message=prep.raw_text,
+                        llm_response=getattr(llm_response, 'response_message', None),
+                    )
+                } | "
+                "LLM result ignored",
             )
             return None
 
@@ -279,6 +301,19 @@ class IncidentHandler:
                 raw_text=raw_text,
                 sanitized_text=text,
                 message_ts=message_ts,
+            )
+
+        response_before_fallback = (llm_response.response_message or "").strip()
+        stripped = self._unified_text_after_merge_fallback(
+            pre_merge_unified=pre_merge_unified or "",
+            llm_response=llm_response,
+            incoming_sanitized=text,
+            message_ts=message_ts,
+            is_source_edit=is_source_edit,
+        )
+        if stripped != response_before_fallback:
+            logger.info(
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=opened_incident.incident_id)} | Merge append fallback (related + unchanged LLM body)",
             )
 
         append_message(
@@ -293,11 +328,12 @@ class IncidentHandler:
             event_type=event_type.value,
         )
 
-        stripped = (llm_response.response_message or "").strip()
         self._tracker.update_after_merge(
             stripped if stripped else None,
             channel_name if stripped else None,
-            alert_priority=llm_response.priority if llm_response.qualified or llm_response.ended else None,
+            alert_priority=llm_response.priority
+            if llm_response.qualified or llm_response.ended
+            else None,
         )
         if stripped:
             logger.info(
@@ -662,7 +698,15 @@ class IncidentHandler:
                         pending_close_seconds=defer_seconds,
                     )
                 logger.info(
-                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED_CANDIDATE} | {json_log_maker(incident_id=opened_incident.incident_id, close_reason=close_reason, deferred_seconds=defer_seconds)} | Deferred close scheduled (reprocess)",
+                    f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED_CANDIDATE} | "
+                    f"{
+                        json_log_maker(
+                            incident_id=opened_incident.incident_id,
+                            close_reason=close_reason,
+                            deferred_seconds=defer_seconds,
+                        )
+                    }"
+                    " | Deferred close scheduled (reprocess)",
                 )
                 return None
             logger.info(
@@ -708,7 +752,9 @@ class IncidentHandler:
             return None
         if not open_incident.incident_message_id:
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | Recovery send (reprocess, missing destination message_id)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | "
+                f"{json_log_maker(incident_id=open_incident.incident_id)}"
+                " | Recovery send (reprocess, missing destination message_id)",
             )
             sent_message_id = await self._telegram_sender.send_alert(
                 channels=list(open_incident.channels),
@@ -719,7 +765,14 @@ class IncidentHandler:
             )
             self._tracker.set_incident_message_id(sent_message_id)
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, incident_message_id=sent_message_id)} | Recovery send stored (reprocess)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | "
+                f"{
+                    json_log_maker(
+                        incident_id=open_incident.incident_id,
+                        incident_message_id=sent_message_id,
+                    )
+                }"
+                " | Recovery send stored (reprocess)",
             )
             return None
         if (
@@ -729,7 +782,9 @@ class IncidentHandler:
             and not canceled_deferred_close
         ):
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id)} | No Telegram edit (unchanged after reprocess)",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | "
+                f"{json_log_maker(incident_id=open_incident.incident_id)}"
+                " | No Telegram edit (unchanged after reprocess)",
             )
             return None
         pending_close = self._get_pending_close_info()
@@ -745,7 +800,14 @@ class IncidentHandler:
             pending_close_seconds=pending_close[1] if pending_close else None,
         )
         logger.info(
-            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | {json_log_maker(incident_id=open_incident.incident_id, message_id=open_incident.incident_message_id)} | Destination alert edited (reprocess)",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.EXISTING} | "
+            f"{
+                json_log_maker(
+                    incident_id=open_incident.incident_id,
+                    message_id=open_incident.incident_message_id,
+                )
+            }"
+            " | Destination alert edited (reprocess)",
         )
         return None
 
@@ -760,7 +822,9 @@ class IncidentHandler:
         recent_closure_appendix: str | None,
     ) -> LLMClient.LLMResponse:
         logger.info(
-            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NEW} | {json_log_maker(channel=channel_name)} | LLM qualification request",
+            f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NEW} | "
+            f"{json_log_maker(channel=channel_name, original_message=text)}"
+            " | LLM qualification request",
         )
         reply_parent_text = await fetch_replied_message_text(
             self._client, channel_id, message
@@ -797,7 +861,17 @@ class IncidentHandler:
             or response.priority == MessagePriority.NONE
         ):
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NOT_OPENED} | {json_log_maker(channel=channel_name, qualified=getattr(response, 'qualified', None), priority=getattr(response, 'priority', None), reasoning=getattr(response, 'reasoning', None))}",
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.NOT_OPENED} |"
+                f"{
+                    json_log_maker(
+                        channel=channel_name,
+                        qualified=getattr(response, 'qualified', None),
+                        priority=getattr(response, 'priority', None),
+                        original_message=raw_text,
+                        llm_response=getattr(response, 'response_message', None),
+                    )
+                }"
+                " | LLM result ignored",
             )
             return None
 
@@ -860,3 +934,27 @@ class IncidentHandler:
         ):
             self._schedule_informational_grace(created.incident_id)
         return created.expires_at
+
+    @staticmethod
+    def _unified_text_after_merge_fallback(
+        *,
+        pre_merge_unified: str,
+        llm_response: LLMClient.LLMResponse,
+        incoming_sanitized: str,
+        message_ts: datetime,
+        is_source_edit: bool,
+    ) -> str:
+        stripped = (llm_response.response_message or "").strip()
+        if is_source_edit:
+            return stripped
+        if not (llm_response.related and not llm_response.ended):
+            return stripped
+        base = pre_merge_unified.strip()
+        inc = incoming_sanitized.strip()
+        if not inc or stripped != base:
+            return stripped
+        if inc in base:
+            return stripped
+        merged = f"{base}\n\n{format_time_il_hm(message_ts)} - {inc}"
+        llm_response.response_message = merged
+        return merged.strip()

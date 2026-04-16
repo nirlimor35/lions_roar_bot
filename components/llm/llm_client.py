@@ -13,12 +13,7 @@ from components.constants import (
     close_reason_label,
 )
 from components.Incident.tracker import ActiveIncident
-from components.llm.prompts import (
-    build_closed_subject_prompt,
-    build_first_prompt,
-    build_ongoing_prompt,
-    build_reprocess_after_deletion_prompt,
-)
+from components.llm.prompts import Prompts
 from components.utils import json_log_maker
 
 
@@ -49,6 +44,7 @@ class LLMClient:
     def __init__(self, openai_api_key: str, model: str | Callable[[], str]):
         self._client = AsyncOpenAI(api_key=openai_api_key)
         self._model = model
+        self._prompts = Prompts()
 
     def _resolve_model(self) -> str:
         if callable(self._model):
@@ -160,16 +156,16 @@ class LLMClient:
             user_content = event_message
 
         if incident is None:
-            system_prompt = build_first_prompt(recent_closure_appendix)
+            system_prompt = self._prompts.build_first_prompt(recent_closure_appendix)
             response = await self._ask_llm(
                 user_content, system_prompt, MessageType.NEW_MESSAGE
             )
             logger.debug(
-                f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, qualified=response.qualified, priority=response.priority)} | New-incident prompt"
+                f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, qualified=response.qualified, priority=response.priority, original_message=user_content, llm_response=response.response_message)} | New-incident prompt"
             )
             return response
 
-        system_prompt = build_ongoing_prompt(
+        system_prompt = self._prompts.build_ongoing_prompt(
             existing_update=incident.unified_text,
             existing_priority=incident.alert_priority,
             source_messages_context=source_messages_context,
@@ -179,7 +175,7 @@ class LLMClient:
         )
         response = await self._ask_llm(user_content, system_prompt, message_type)
         logger.debug(
-            f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, incident_id=incident.incident_id, related=response.related, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Merge prompt"
+            f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, incident_id=incident.incident_id, related=response.related, qualified=response.qualified, ended=response.ended, priority=response.priority, original_message=user_content, llm_response=response.response_message)} | Merge prompt"
         )
         return response
 
@@ -189,7 +185,7 @@ class LLMClient:
         incident: ActiveIncident,
         source_messages_context: str,
     ) -> LLMResponse:
-        system_prompt = build_reprocess_after_deletion_prompt(
+        system_prompt = self._prompts.build_reprocess_after_deletion_prompt(
             existing_update=incident.unified_text,
             existing_priority=str(incident.alert_priority.value),
             source_messages_context=source_messages_context,
@@ -201,7 +197,7 @@ class LLMClient:
             user_content, system_prompt, MessageType.DELETED_MESSAGE
         )
         logger.debug(
-            f"{ModuleColors.LLM} | {json_log_maker(incident_id=incident.incident_id, qualified=response.qualified, ended=response.ended, priority=response.priority)} | Reprocess-after-deletion prompt"
+            f"{ModuleColors.LLM} | {json_log_maker(incident_id=incident.incident_id, qualified=response.qualified, ended=response.ended, priority=response.priority, llm_response=response.response_message)} | Reprocess-after-deletion prompt"
         )
         return response
 
@@ -212,7 +208,7 @@ class LLMClient:
         close_reason: CloseReason | None,
     ) -> str | None:
         reason = close_reason or CloseReason.ALL_CLEAR
-        prompt = build_closed_subject_prompt(
+        prompt = self._prompts.build_closed_subject_prompt(
             close_reason_code=reason.value,
             close_reason_label_text=close_reason_label(reason),
         )

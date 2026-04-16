@@ -258,7 +258,15 @@ class LionsRoar:
     ) -> None:
         self._cancel_deferred_close()
         logger.info(
-            f"{ModuleColors.MAIN} | {json_log_maker(incident_id=incident_id, close_reason=close_reason, delay_s=delay_seconds)} | Scheduling deferred-close task"
+            f"{ModuleColors.MAIN} | "
+            f"{
+                json_log_maker(
+                    incident_id=incident_id,
+                    close_reason=close_reason,
+                    delay_s=delay_seconds,
+                )
+            }"
+            " | Scheduling deferred-close task"
         )
         self._deferred_close_incident_id = incident_id
         self._deferred_close_reason = close_reason
@@ -281,7 +289,13 @@ class LionsRoar:
                 opened = self._tracker.get_open_incident()
                 if opened is None or opened.incident_id != incident_id:
                     logger.info(
-                        f"{ModuleColors.MAIN} | {json_log_maker(incident_id=incident_id, close_reason=close_reason)} | Deferred-close fired | skip (incident not open/mismatched)"
+                        f"{ModuleColors.MAIN} | "
+                        f"{
+                            json_log_maker(
+                                incident_id=incident_id, close_reason=close_reason
+                            )
+                        }"
+                        " | Deferred-close fired | skip (incident not open/mismatched)"
                     )
                     return
                 snapshot = self._tracker.end_incident(utc_now())
@@ -324,10 +338,24 @@ class LionsRoar:
                     )
                 else:
                     logger.info(
-                        f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(incident_id=snapshot.incident_id, message_id=snapshot.incident_message_id, close_reason=close_reason)} | Deferred-close destination alert edited"
+                        f"{ModuleColors.INCIDENT_HANDLER} | "
+                        f"{
+                            json_log_maker(
+                                incident_id=snapshot.incident_id,
+                                message_id=snapshot.incident_message_id,
+                                close_reason=close_reason,
+                            )
+                        }"
+                        "| Deferred-close destination alert edited"
                     )
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED} | {json_log_maker(incident_id=snapshot.incident_id, close_reason=close_reason)} | Incident closed after deferred close"
+                f"{ModuleColors.INCIDENT_HANDLER} | {IncidentHandlerLog.ENDED} | "
+                f"{
+                    json_log_maker(
+                        incident_id=snapshot.incident_id, close_reason=close_reason
+                    )
+                }"
+                "| Incident closed after deferred close"
             )
         except asyncio.CancelledError:
             raise
@@ -648,7 +676,7 @@ class LionsRoar:
                         )
                     self._edit_text_cache.record(channel_id, message_id, edit_text)
             logger.info(
-                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None)} | Incident pipeline",
+                f"{ModuleColors.INCIDENT_HANDLER} | {json_log_maker(type=event_type, channel=channel_name, message_id=message_id, open_incident_id=opened_incident.incident_id if opened_incident else None, original_message=raw_text)} | Incident pipeline",
             )
             if opened_incident is not None:
                 prep = self._incident_handler.build_existing_incident_prep(
