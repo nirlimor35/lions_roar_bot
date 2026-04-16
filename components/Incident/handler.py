@@ -1,4 +1,5 @@
 import copy
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -212,9 +213,7 @@ class IncidentHandler:
             source_messages_context=prep.source_messages_context,
             is_source_edit=prep.is_source_edit,
             edited_message_previous_text=prep.previous_source_text,
-            message_ts_il=None
-            if prep.is_source_edit
-            else format_time_il_hm(prep.message_ts),
+            message_ts_il=format_time_il_hm(prep.message_ts),
         )
 
     async def apply_existing_incident_locked_phase(
@@ -310,6 +309,7 @@ class IncidentHandler:
             incoming_sanitized=text,
             message_ts=message_ts,
             is_source_edit=is_source_edit,
+            previous_source_text=prep.previous_source_text,
         )
         if stripped != response_before_fallback:
             logger.info(
@@ -322,7 +322,7 @@ class IncidentHandler:
             message_dt=message_ts,
             incident_start=opened_incident.start_time,
             message_id=message_id,
-            parent_message_id=parent_message_id,
+            tagged_message_id=parent_message_id,
             llm_response=llm_response.to_log_dict(),
             log_file_suffix=opened_incident.log_file_suffix,
             event_type=event_type.value,
@@ -538,7 +538,7 @@ class IncidentHandler:
                 message_dt=message_ts,
                 incident_start=incident_start,
                 message_id=ent.message_id,
-                parent_message_id=None,
+                tagged_message_id=None,
                 llm_response={"source_deleted": True},
                 log_file_suffix=log_suffix,
                 event_type=MessageType.DELETED_MESSAGE.value,
@@ -883,7 +883,7 @@ class IncidentHandler:
             message_dt=message_ts,
             incident_start=message_ts,
             message_id=message_id,
-            parent_message_id=parent_message_id,
+            tagged_message_id=parent_message_id,
             llm_response=response.to_log_dict(),
             log_file_suffix=log_file_suffix,
             event_type=event_type.value,
@@ -936,6 +936,35 @@ class IncidentHandler:
         return created.expires_at
 
     @staticmethod
+    def _collapse_duplicate_closure_timestamp_block(
+        body: str,
+        *,
+        previous_source_text: str,
+        incoming_sanitized: str,
+        ts_hhmm: str,
+    ) -> str | None:
+        """If the tail has multiple `{HH:MM} - …` lines for the same closure edit, collapse to one."""
+        prev = (previous_source_text or "").strip()
+        inc = (incoming_sanitized or "").strip()
+        if not prev or not inc or prev == inc or prev not in inc:
+            return None
+        if "\n\n" not in body:
+            return None
+        head, tail = body.rsplit("\n\n", 1)
+        lines = [ln.strip() for ln in tail.split("\n") if ln.strip()]
+        if len(lines) < 2:
+            return None
+        ts_pat = re.compile(r"^\d{1,2}:\d{2}\s*-\s*(.+)$")
+        hits: list[str] = []
+        for ln in lines:
+            m = ts_pat.match(ln)
+            if m is not None and prev in m.group(1):
+                hits.append(ln)
+        if len(hits) < 2:
+            return None
+        return f"{head}\n\n{ts_hhmm} - {inc}"
+
+    @staticmethod
     def _unified_text_after_merge_fallback(
         *,
         pre_merge_unified: str,
@@ -943,14 +972,45 @@ class IncidentHandler:
         incoming_sanitized: str,
         message_ts: datetime,
         is_source_edit: bool,
+        previous_source_text: str | None = None,
     ) -> str:
         stripped = (llm_response.response_message or "").strip()
-        if is_source_edit:
-            return stripped
-        if not (llm_response.related and not llm_response.ended):
-            return stripped
         base = pre_merge_unified.strip()
         inc = incoming_sanitized.strip()
+        prev = (previous_source_text or "").strip() if is_source_edit else ""
+
+        if is_source_edit:
+            if not llm_response.related:
+                return stripped
+            if not inc or inc == prev:
+                return stripped
+            ts_hhmm = format_time_il_hm(message_ts)
+            collapsed = IncidentHandler._collapse_duplicate_closure_timestamp_block(
+                stripped,
+                previous_source_text=prev,
+                incoming_sanitized=inc,
+                ts_hhmm=ts_hhmm,
+            )
+            if collapsed is not None:
+                llm_response.response_message = collapsed
+                return collapsed.strip()
+            # LLM regressed to a strict prefix of the stored unified body (e.g. dropped
+            # timeline lines). Restore full base, then record this edit as a new line.
+            if base and stripped and base.startswith(stripped) and len(base) > len(
+                stripped
+            ):
+                merged = f"{base}\n\n{ts_hhmm} - {inc}"
+                llm_response.response_message = merged
+                return merged.strip()
+            # LLM repeated the prior unified body while the source text changed.
+            if stripped == base and inc not in base:
+                merged = f"{base}\n\n{ts_hhmm} - {inc}"
+                llm_response.response_message = merged
+                return merged.strip()
+            return stripped
+
+        if not (llm_response.related and not llm_response.ended):
+            return stripped
         if not inc or stripped != base:
             return stripped
         if inc in base:

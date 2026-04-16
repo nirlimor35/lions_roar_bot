@@ -28,7 +28,7 @@ def append_message(
     message_id: int,
     llm_response: dict,
     log_file_suffix: str,
-    parent_message_id: int | None = None,
+    tagged_message_id: int | None = None,
     event_type: str = "new_message",
     data_dir: str = "data",
 ) -> None:
@@ -52,9 +52,10 @@ def append_message(
         "datetime": to_il_tz(message_dt).strftime("%Y-%m-%d %H:%M:%S"),
         "llm_response": llm_response,
         "event_type": event_type,
+        "is_tagged": tagged_message_id is not None,
     }
-    if parent_message_id is not None:
-        record["parent_message_id"] = parent_message_id
+    if tagged_message_id is not None:
+        record["tagged_message_id"] = tagged_message_id
     records.append(record)
 
     tmp_target = target.with_suffix(f"{target.suffix}.tmp")

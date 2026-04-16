@@ -1,0 +1,67 @@
+[
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 642,
+        "message": "תזוזת משגרים כהכנה לשיגור",
+        "event_type": "new_message",
+        "is_tagged": false
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 643,
+        "message": "שיגורים מאיראן",
+        "event_type": "new_message",
+        "is_tagged": false
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 644,
+        "message": "למרכז",
+        "event_type": "new_message",
+        "is_tagged": true,
+        "tagged_message_id": 643
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 645,
+        "message": "צפי הגעה 21:15",
+        "event_type": "new_message",
+        "is_tagged": false
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 646,
+        "message": "המיקוד הרצליה",
+        "event_type": "new_message",
+        "is_tagged": false
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 698,
+        "message": "זוהו שיגורים נוספים",
+        "event_type": "new_message",
+        "is_tagged": false
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 705,
+        "message": "מרכז",
+        "event_type": "new_message",
+        "is_tagged": true,
+        "tagged_message_id": 704
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 649,
+        "message": "האירוע הסתיים",
+        "event_type": "new_message",
+        "is_tagged": false
+    },
+    {
+        "channel_name": "nir-lr-test-1",
+        "message_id": 649,
+        "message": "האירוע הסתיים, ניתן לצאת מהמרחבים המוגנים",
+        "event_type": "edited_message",
+        "is_tagged": false
+    }
+]
