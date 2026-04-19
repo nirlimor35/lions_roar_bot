@@ -13,8 +13,6 @@ from components.constants import (
     CloseReason,
     MessagePriority,
     ModuleColors,
-    alert_title_for_priority,
-    close_reason_label,
 )
 from components.utils import (
     ensure_utc,
@@ -93,7 +91,7 @@ class TelegramMessageSender:
         elif pending_close_reason is not None:
             prefix = AlertTitles.PENDING_CLOSE
         else:
-            prefix = alert_title_for_priority(alert_priority)
+            prefix = alert_priority.alert_title_for_priority
 
         safe_channels = [html.escape(c) for c in channels]
         if len(safe_channels) <= 1:
@@ -130,7 +128,7 @@ class TelegramMessageSender:
                 f"<b>סגירה צפויה:</b> {html.escape(format_ts_il(expected_close_at))}"
             )
             lines.append(
-                f"<b>סיבת סגירה צפויה:</b> {html.escape(close_reason_label(pending_close_reason))}"
+                f"<b>סיבת סגירה צפויה:</b> {html.escape(pending_close_reason.close_reason_label)}"
             )
         if ended_at is not None:
             mins = self._elapsed_minutes(start_at, ended_at)
@@ -144,7 +142,7 @@ class TelegramMessageSender:
             reason_line = (
                 custom_close_reason.strip()
                 if custom_close_reason and custom_close_reason.strip()
-                else close_reason_label(reason)
+                else reason.close_reason_label
             )
             lines.append(f"<b>סיבת סגירה:</b> {html.escape(reason_line)}")
         inner = "\n".join(lines)

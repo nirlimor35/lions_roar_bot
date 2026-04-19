@@ -30,39 +30,48 @@ class CloseReason(LionsRoarStrEnum):
     INFORMATIONAL_GRACE = "informational_grace"
     SOURCE_DELETED = "source_deleted"
 
-
-def close_reason_label(reason: CloseReason) -> str:
-    """Hebrew explanation for subscribers."""
-    if reason == CloseReason.ALL_CLEAR:
-        return "אירוע הסתיים"
-    if reason == CloseReason.OUT_OF_SUBSCRIBER_AREAS:
-        return "האירוע מחוץ לטווח"
-    if reason == CloseReason.TTL:
-        return "סגירה אוטומטית"
-    if reason == CloseReason.MANUAL:
-        return "סגירה ידנית על ידי מנהל"
-    if reason == CloseReason.INFORMATIONAL_GRACE:
-        return "סגירה אחרי המתנה — לא נרשמה הסלמה נוספת"
-    if reason == CloseReason.SOURCE_DELETED:
-        return "ההודעה המקורית נמחקה"
+    @property
+    def close_reason_label(self) -> str:
+        labels = {
+            CloseReason.ALL_CLEAR: "אירוע הסתיים",
+            CloseReason.OUT_OF_SUBSCRIBER_AREAS: "האירוע מחוץ לטווח",
+            CloseReason.TTL: "סגירה אוטומטית",
+            CloseReason.MANUAL: "סגירה ידנית על ידי מנהל",
+            CloseReason.INFORMATIONAL_GRACE: "סגירה אחרי המתנה — לא נרשמה הסלמה נוספת",
+            CloseReason.SOURCE_DELETED: "ההודעה המקורית נמחקה",
+        }
+        return labels[self]
 
 
 class AlertTitles:
-    """Hebrew alert headings by priority (for HTML alerts)."""
+    """Hebrew ending status titles (for HTML alerts)."""
 
-    HIGH = "🚨 התרעה"
-    WARNING = "⚠️ התראה מוקדמת"
-    INFORMATIONAL = "ℹ️ אירוע פעיל — לא בסביבה"
     PENDING_CLOSE = "⏰ אירוע מועמד לסגירה"
     ENDED = "✅ האירוע הסתיים"
-    # Treat NONE like informational for display when an incident was opened.
-    DEFAULT = INFORMATIONAL
+
+
+class MessagePriority(LionsRoarStrEnum):
+    NONE = "none"
+    INFORMATIONAL = "informational"
+    WARNING = "warning"
+    HIGH = "high"
+
+    @property
+    def alert_title_for_priority(self) -> str:
+        titles = {
+            MessagePriority.HIGH: "🚨 התרעה",
+            MessagePriority.WARNING: "⚠️ התראה מוקדמת",
+            MessagePriority.INFORMATIONAL: "ℹ️ אירוע פעיל — לא בסביבה",
+        }
+        return titles[self]
+
 
 class ModuleColors:
     INCIDENT_HANDLER = "\033[94mIncident Handler\033[0m"
     MESSAGE_PROCESSING = "\033[95mMessage Processing\033[0m"
     MAIN = "\033[96mMain\033[0m"
     LLM = "\033[92mLLM\033[0m"
+
 
 class IncidentHandlerLog:
     NEW = "\033[93mNew Incident\033[0m"
@@ -72,24 +81,6 @@ class IncidentHandlerLog:
     ENDED = "\033[92;1mEnded Incident\033[0m"
     MANUAL = "\033[92;1mManual Close\033[0m"
     ENDED_CANDIDATE = "\033[92;2mEnded Incident Candidate\033[0m"
-
-
-class MessagePriority(LionsRoarStrEnum):
-    NONE = "none"
-    INFORMATIONAL = "informational"
-    WARNING = "warning"
-    HIGH = "high"
-
-
-def alert_title_for_priority(priority: MessagePriority) -> str:
-    """Headline line (no HTML) for an open incident."""
-    if priority == MessagePriority.HIGH:
-        return AlertTitles.HIGH
-    if priority == MessagePriority.WARNING:
-        return AlertTitles.WARNING
-    if priority == MessagePriority.INFORMATIONAL:
-        return AlertTitles.INFORMATIONAL
-    return AlertTitles.DEFAULT
 
 
 class MessageType(LionsRoarStrEnum):

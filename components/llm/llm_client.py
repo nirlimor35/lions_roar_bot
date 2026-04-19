@@ -10,7 +10,6 @@ from components.constants import (
     MessagePriority,
     MessageType,
     ModuleColors,
-    close_reason_label,
 )
 from components.Incident.tracker import ActiveIncident
 from components.llm.prompts import Prompts
@@ -210,7 +209,7 @@ class LLMClient:
         reason = close_reason or CloseReason.ALL_CLEAR
         prompt = self._prompts.build_closed_subject_prompt(
             close_reason_code=reason.value,
-            close_reason_label_text=close_reason_label(reason),
+            close_reason_label_text=reason.close_reason_label,
         )
         response = await self._client.chat.completions.create(
             model=self._resolve_model(),
