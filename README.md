@@ -72,3 +72,4 @@ Build and deployment scripts under `tools/` (`docker_build.sh`, `docker_run.sh`)
 
 - Never commit `config.yaml`, `.session` files, or API keys.
 - Treat the Telethon user session as highly sensitive: it can act as your Telegram account within the limits of the API.
+
