@@ -126,11 +126,11 @@ class LLMClient:
         try:
             response_json = json.loads(content)
         except json.JSONDecodeError:
-            logger.warning(f"{ModuleColors.LLM} | {json_log_maker(content=content)} | Bad JSON")
+            logger.warning(
+                f"{ModuleColors.LLM} | {json_log_maker(content=content)} | Bad JSON"
+            )
             return LLMResponse(
-                response_message=None, 
-                qualified=False, 
-                priority=MessagePriority.NONE
+                response_message=None, qualified=False, priority=MessagePriority.NONE
             )
         return self._llm_response_from_json(response_json)
 
@@ -159,8 +159,15 @@ class LLMClient:
             response = await self._ask_llm(
                 user_content, system_prompt, MessageType.NEW_MESSAGE
             )
+            log_payload = json_log_maker(
+                message_type=message_type,
+                qualified=response.qualified,
+                priority=response.priority,
+                original_message=user_content,
+                llm_response=response.response_message,
+            )
             logger.debug(
-                f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, qualified=response.qualified, priority=response.priority, original_message=user_content, llm_response=response.response_message)} | New-incident prompt"
+                f"{ModuleColors.LLM} | {log_payload} | New-incident prompt"
             )
             return response
 
@@ -173,9 +180,17 @@ class LLMClient:
             message_ts_il=message_ts_il,
         )
         response = await self._ask_llm(user_content, system_prompt, message_type)
-        logger.debug(
-            f"{ModuleColors.LLM} | {json_log_maker(message_type=message_type, incident_id=incident.incident_id, related=response.related, qualified=response.qualified, ended=response.ended, priority=response.priority, original_message=user_content, llm_response=response.response_message)} | Merge prompt"
+        log_payload = json_log_maker(
+            message_type=message_type,
+            incident_id=incident.incident_id,
+            related=response.related,
+            qualified=response.qualified,
+            ended=response.ended,
+            priority=response.priority,
+            original_message=user_content,
+            llm_response=response.response_message,
         )
+        logger.debug(f"{ModuleColors.LLM} | {log_payload} | Merge prompt")
         return response
 
     async def reprocess_after_deletion(
@@ -190,13 +205,21 @@ class LLMClient:
             source_messages_context=source_messages_context,
         )
         user_content = (
-            "Recompute the incident narrative and priority from the remaining sources only."
+            "Recompute the incident narrative and priority from the remaining sources "
+            "only."
         )
         response = await self._ask_llm(
             user_content, system_prompt, MessageType.DELETED_MESSAGE
         )
+        log_payload = json_log_maker(
+            incident_id=incident.incident_id,
+            qualified=response.qualified,
+            ended=response.ended,
+            priority=response.priority,
+            llm_response=response.response_message,
+        )
         logger.debug(
-            f"{ModuleColors.LLM} | {json_log_maker(incident_id=incident.incident_id, qualified=response.qualified, ended=response.ended, priority=response.priority, llm_response=response.response_message)} | Reprocess-after-deletion prompt"
+            f"{ModuleColors.LLM} | {log_payload} | Reprocess-after-deletion prompt"
         )
         return response
 

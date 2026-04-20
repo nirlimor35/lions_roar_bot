@@ -19,6 +19,25 @@ INFORMATIONAL_GRACE_PERIOD = timedelta(minutes=5)
 
 SOURCE_DELETED_GRACE_PERIOD = timedelta(minutes=2)
 
+_CLOSE_REASON_LABELS = {
+    "all_clear": "אירוע הסתיים",
+    "out_of_subscriber_areas": "האירוע מחוץ לטווח",
+    "ttl": "סגירה אוטומטית",
+    "manual": "סגירה ידנית על ידי מנהל",
+    "informational_grace": "סגירה אחרי המתנה — לא נרשמה הסלמה נוספת",
+    "source_deleted": "ההודעה המקורית נמחקה",
+}
+
+_PRIORITY_TITLE_HIGH = "🚨 התרעה"
+_PRIORITY_TITLE_WARNING = "⚠️ התראה מוקדמת"
+_PRIORITY_TITLE_INFORMATIONAL = "ℹ️ אירוע פעיל — לא בסביבה"
+
+_PRIORITY_TITLES = {
+    "high": _PRIORITY_TITLE_HIGH,
+    "warning": _PRIORITY_TITLE_WARNING,
+    "informational": _PRIORITY_TITLE_INFORMATIONAL,
+}
+
 
 class CloseReason(LionsRoarStrEnum):
     """Why an incident was closed (shown in the Telegram footer)."""
@@ -32,15 +51,7 @@ class CloseReason(LionsRoarStrEnum):
 
     @property
     def close_reason_label(self) -> str:
-        labels = {
-            CloseReason.ALL_CLEAR: "אירוע הסתיים",
-            CloseReason.OUT_OF_SUBSCRIBER_AREAS: "האירוע מחוץ לטווח",
-            CloseReason.TTL: "סגירה אוטומטית",
-            CloseReason.MANUAL: "סגירה ידנית על ידי מנהל",
-            CloseReason.INFORMATIONAL_GRACE: "סגירה אחרי המתנה — לא נרשמה הסלמה נוספת",
-            CloseReason.SOURCE_DELETED: "ההודעה המקורית נמחקה",
-        }
-        return labels[self]
+        return _CLOSE_REASON_LABELS[self.value]
 
 
 class AlertTitles:
@@ -58,13 +69,7 @@ class MessagePriority(LionsRoarStrEnum):
 
     @property
     def alert_title_for_priority(self) -> str:
-        titles = {
-            MessagePriority.HIGH: "🚨 התרעה",
-            MessagePriority.WARNING: "⚠️ התראה מוקדמת",
-            MessagePriority.INFORMATIONAL: "ℹ️ אירוע פעיל — לא בסביבה",
-        }
-        return titles[self]
-
+        return _PRIORITY_TITLES.get(self.value, _PRIORITY_TITLE_INFORMATIONAL)
 
 class ModuleColors:
     INCIDENT_HANDLER = "\033[94mIncident Handler\033[0m"

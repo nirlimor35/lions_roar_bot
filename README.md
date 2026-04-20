@@ -13,7 +13,7 @@ Time-based model selection uses **Asia/Jerusalem**: a “night” model applies 
 
 ## Requirements
 
-- Python **3.11+** (the bundled `Dockerfile` uses Python 3.12).
+- Python **3.12+** (the bundled `Dockerfile` uses Python 3.12).
 - A Telegram **API ID** and **API hash** from [my.telegram.org](https://my.telegram.org/apps).
 - A Telegram **user session** file for Telethon (see below).
 - A **bot token** from [@BotFather](https://t.me/BotFather) for sending messages to the alert chat.
