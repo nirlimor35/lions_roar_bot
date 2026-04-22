@@ -33,5 +33,5 @@ sudo docker load -i ${file_name}
 
 echo ""
 log "Running new ${tag} version"
-cid=$(sudo docker run --name lions_roar -d -v "$(pwd)/data:/app/data" -v "$(pwd)/config.yaml:/app/config.yaml" ${container_name}:${tag})
+cid=$(sudo docker run --name lions_roar -d --restart unless-stopped -v "$(pwd)/data:/app/data" -v "$(pwd)/config.yaml:/app/config.yaml" ${container_name}:${tag})
 sudo docker logs -f "$cid"
